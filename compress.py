@@ -1,9 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 """API to compress/decompress audio to bytestreams."""
 
 import io
@@ -18,14 +12,12 @@ import binary
 from quantization.ac import ArithmeticCoder, ArithmeticDecoder, build_stable_quantized_cdf
 from model import EncodecModel, EncodedFrame
 
-
 MODELS = {
     'encodec_24khz': EncodecModel.encodec_model_24khz,
     'encodec_48khz': EncodecModel.encodec_model_48khz,
     'my_encodec':EncodecModel.my_encodec_model,
     'encodec_bw':EncodecModel.encodec_model_bw,
 }
-
 
 def compress_to_file(model: EncodecModel, wav: torch.Tensor, fo: tp.IO[bytes],
                      use_lm: bool = True):

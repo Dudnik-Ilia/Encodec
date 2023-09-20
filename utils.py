@@ -1,11 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""Various utilities."""
-
 from hashlib import sha256
 from pathlib import Path
 import typing as tp
@@ -18,7 +10,6 @@ import random
 import torch
 import torchaudio
 import torch.multiprocessing as mp 
-
 
 def _linear_overlap_add(frames: tp.List[torch.Tensor], stride: int):
     # Generic overlap add, with linear fade-in/fade-out, supporting complex scenario
@@ -198,37 +189,37 @@ def collect_audio_durations(csv_files,output_path='./audio_durations.csv'):
 def plot_audio_durations(duration_csv, boundaries, output_filename='audio_durations.png'):  
     duration_csv = Path(duration_csv)  
     assert duration_csv.exists(), "duration_csv isn't exists, need to use collect_audio_durations()"  
-    # 读取音频时长数据  
+    # Read audio duration data
     duration_data = pd.read_csv(duration_csv)  
-    # 计算直方图的分割点  
+    # Calculate the split points of the histogram
     max_duration = int(np.ceil(duration_data['duration'].max()))  
     bins = np.arange(0, max_duration + 1, 1)  
     plt.figure(figsize=(12,5))  
-    # 设置刻度字体大小  
+    # Set tick font size
     plt.rcParams['xtick.labelsize'] = 8  
     plt.rcParams['ytick.labelsize'] = 8  
-    # 绘制直方图  
+    # Draw a histogram
     counts, edges, patches = plt.hist(duration_data['duration'], bins=bins)  
-    # 设置图像标题和轴标签  
+    # Set image titles and axis labels
     plt.title('audio durations distribution')  
     plt.xlabel('time(s)')  
     plt.ylabel('nums')  
     plt.xticks(np.arange(0, max_duration + 1, 1))  
-    # 计算累积频率  
+    # Calculate cumulative frequency
     cum_counts = np.cumsum(counts)  
     total_count = len(duration_data)  
-    # 颜色列表  
+    # color list
     colors = ['r', 'g', 'b', 'm', 'c', 'y', 'k']  
-    # 绘制分界线  
+    # draw dividing lines
     for i, boundary in enumerate(boundaries):  
         percentage = total_count * boundary  
         idx = np.where(cum_counts >= percentage)[0][0]  
-        color = colors[i % len(colors)]  # 从颜色列表中选择颜色  
+        color = colors[i % len(colors)]  # Select a color from the color list
         plt.axvline(x=edges[idx], color=color, linestyle='--', label=f'{int(boundary * 100)}%')  
-    # 添加图例  
+    # Add legend
     plt.legend()  
-    # 保存图像到文件  
+    # Save image to file
     plt.savefig(output_filename, dpi=600)  
-    # 显示图像  
+    # show image
     plt.show()
     

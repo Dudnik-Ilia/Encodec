@@ -1,11 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""EnCodec model implementation."""
-
 import math
 from pathlib import Path
 import typing as tp
@@ -20,7 +12,6 @@ from utils import _check_checksum, _linear_overlap_add, _get_checkpoint_url
 import random
 
 ROOT_URL = 'https://dl.fbaipublicfiles.com/encodec/v0/'
-
 EncodedFrame = tp.Tuple[torch.Tensor, tp.Optional[torch.Tensor]]
 
 

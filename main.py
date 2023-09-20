@@ -1,11 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""Command-line for audio compression."""
-
 import argparse
 from pathlib import Path
 import sys
@@ -14,10 +6,9 @@ import torchaudio
 
 from compress import compress, decompress, MODELS
 from utils import save_audio, convert_audio
-
-
+# Test the model for 1 audio
+# Compression and decompression scripts
 SUFFIX = '.ecdc'
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
