@@ -45,7 +45,7 @@ class ResidualVectorQuantizer(nn.Module):
     Args:
         dimension (int): Dimension of the codebooks.
         n_q (int): Number of residual vector quantizers used.
-        bins (int): Codebook size.
+        bins (int): Codebook size (Num of codes)
         decay (float): Decay for exponential moving average over the codebooks.
         kmeans_init (bool): Whether to use kmeans to initialize the codebooks.
         kmeans_iters (int): Number of iterations used for kmeans initialization.

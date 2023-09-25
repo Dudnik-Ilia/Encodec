@@ -1,10 +1,11 @@
 import math
 from pathlib import Path
 import typing as tp
+from typing import Tuple, Any, Union, List, Optional
 
 import numpy as np
 import torch
-from torch import nn
+from torch import nn, Tensor
 
 import quantization as qt
 import modules as m
@@ -91,8 +92,12 @@ class EncodecModel(nn.Module):
         self.normalize = normalize
         self.segment = segment
         self.overlap = overlap
+        # Encoder.ratios are the downsampling coeffs in convolutions
+        # Frame rate is {Num of codes per sec}
         self.frame_rate = math.ceil(self.sample_rate / np.prod(self.encoder.ratios)) #75
         self.name = name
+        # bins (int): Codebook size (Num of codes)
+        # log2(bins) --> num of bits per code
         self.bits_per_codebook = int(math.log2(self.quantizer.bins))
         assert 2 ** self.bits_per_codebook == self.quantizer.bins, \
             "quantizer bins must be a power of 2."
@@ -111,6 +116,7 @@ class EncodecModel(nn.Module):
         return max(1, int((1 - self.overlap) * segment_length))
 
     def encode(self, x: torch.Tensor) -> tp.List[EncodedFrame]:
+        #
         """Given a tensor `x`, returns a list of frames containing
         the discrete encoded codes for `x`, along with rescaling factors
         for each segment, when `self.normalize` is True.
@@ -118,11 +124,14 @@ class EncodecModel(nn.Module):
         Each frames is a tuple `(codebook, scale)`, with `codebook` of
         shape `[B, K, T]`, with `K` the number of codebooks.
         """
+        # x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
         assert x.dim() == 3
         _, channels, length = x.shape
-        assert channels > 0 and channels <= 2
-        segment_length = self.segment_length 
-        if segment_length is None: #segment_length = 1*sample_rate
+        assert 0 < channels <= 2
+        segment_length = self.segment_length
+        # segment_length = 1*sample_rate
+        if segment_length is None:
+            # Usual setup
             segment_length = length
             stride = length
         else:
@@ -130,13 +139,18 @@ class EncodecModel(nn.Module):
             assert stride is not None
 
         encoded_frames: tp.List[EncodedFrame] = []
-        for offset in range(0, length, stride): # shift windows to choose data
+        # shift windows to choose data
+        for offset in range(0, length, stride):
             frame = x[:, :, offset: offset + segment_length]
             encoded_frames.append(self._encode_frame(frame))
         return encoded_frames
 
     def _encode_frame(self, x: torch.Tensor) -> EncodedFrame:
-        length = x.shape[-1] # tensor_cut or original
+        """X is a frame of the input tensor to the net
+        Goes via Encoder NN and Quantization
+        Returns Codes"""
+        # tensor_cut or original
+        length = x.shape[-1]
         duration = length / self.sample_rate
         assert self.segment is None or duration <= 1e-5 + self.segment
 
@@ -149,8 +163,9 @@ class EncodecModel(nn.Module):
         else:
             scale = None
 
-        emb = self.encoder(x) # [2,1,10000] -> [2,128,32]
-        #TODO: Encodec Trainer的training
+        # [2,1,10000] -> [2,128,32]
+        emb = self.encoder(x)
+
         if self.training:
             return emb,scale
         codes = self.quantizer.encode(emb, self.frame_rate, self.bandwidth)
@@ -183,8 +198,9 @@ class EncodecModel(nn.Module):
             out = out * scale.view(-1, 1, 1)
         return out
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        frames = self.encode(x) # input_wav -> encoder , x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
+    def forward(self, x: torch.Tensor) -> Tuple[Any, Union[Tensor, Any], List[Tuple[Tensor, Optional[Tensor]]]]:
+        # input_wav -> encoder , x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
+        frames = self.encode(x)
         if self.training:
             # if encodec is training, input_wav -> encoder -> quantizer forward -> decode
             loss_w = torch.tensor([0.0], device=x.device, requires_grad=True)
@@ -193,10 +209,12 @@ class EncodecModel(nn.Module):
             index = torch.tensor(random.randint(0,len(self.target_bandwidths)-1),device=x.device)
             if torch.distributed.is_initialized():
                 torch.distributed.broadcast(index, src=0)
-            bw = self.target_bandwidths[index.item()]# fixme: variable bandwidth training, if you broadcast bd, the broadcast will encounter error
+            # fixme: variable bandwidth training, if you broadcast bd, the broadcast will encounter error
+            bw = self.target_bandwidths[index.item()]
             for emb,scale in frames:
                 qv = self.quantizer(emb,self.frame_rate,bw)
-                loss_w = loss_w + qv.penalty # loss_w is the sum of all quantizer forward loss (RVQ commitment loss :l_w)
+                # loss_w is the sum of all quantizer forward loss (RVQ commitment loss :l_w)
+                loss_w = loss_w + qv.penalty
                 codes.append((qv.quantized,scale))
             return self.decode(codes)[:,:,:x.shape[-1]],loss_w,frames
         else:
@@ -230,6 +248,7 @@ class EncodecModel(nn.Module):
         lm.eval()
         return lm
 
+    # Create a model
     @staticmethod
     def _get_model(target_bandwidths: tp.List[float],
                    sample_rate: int = 24_000,
@@ -240,9 +259,10 @@ class EncodecModel(nn.Module):
                    segment: tp.Optional[float] = None,
                    name: str = 'unset',
                    ratios=[8, 5, 4, 2]):
-        encoder = m.SEANetEncoder(channels=channels, norm=model_norm, causal=causal,ratios=ratios)
-        decoder = m.SEANetDecoder(channels=channels, norm=model_norm, causal=causal,ratios=ratios)
-        n_q = int(1000 * target_bandwidths[-1] // (math.ceil(sample_rate / encoder.hop_length) * 10)) # int(1000*24//(math.ceil(24000/320)*10))
+        encoder = m.SEANetEncoder(channels=channels, norm=model_norm, causal=causal, ratios=ratios)
+        decoder = m.SEANetDecoder(channels=channels, norm=model_norm, causal=causal, ratios=ratios)
+        # int(1000*24//(math.ceil(24000/320)*10)) ?
+        n_q = int(1000 * target_bandwidths[-1] // (math.ceil(sample_rate / encoder.hop_length) * 10))
         quantizer = qt.ResidualVectorQuantizer(
             dimension=encoder.dimension,
             n_q=n_q,
@@ -261,6 +281,7 @@ class EncodecModel(nn.Module):
         )
         return model
 
+    # Code to download checkpoint
     @staticmethod
     def _get_pretrained(checkpoint_name: str, repository: tp.Optional[Path] = None):
         if repository is not None:
@@ -314,7 +335,6 @@ class EncodecModel(nn.Module):
         model.eval()
         return model
 
-    #TODO: 自己实现一个encodec的model
     @staticmethod
     def my_encodec_model(checkpoint: str,ratios=[8,5,4,2]):
         """Return the pretrained 24khz model.

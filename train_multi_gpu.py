@@ -299,10 +299,12 @@ def main(config):
         os.environ["TORCH_DISTRIBUTED_DEBUG"]="DETAIL"
     if not os.path.exists(config.checkpoint.save_folder):
         os.makedirs(config.checkpoint.save_folder)
+
     # disable cudnn
     torch.backends.cudnn.enabled = False
-    # set distributed
-    if config.distributed.data_parallel:  
+    # set distributed computing (GPUs)
+    if config.distributed.data_parallel:
+        # number of GPUs
         world_size = config.distributed.world_size  
         if config.distributed.init_method == "tmp":  
             import tempfile  
@@ -310,8 +312,9 @@ def main(config):
                 start_dist_train(train, world_size, config, tmp_file.name)  
         elif config.distributed.init_method == "tcp":  
             start_dist_train(train, world_size, config)  
-    else:  
-        train(1, 1, config)  # set single gpu train 
+    else:
+        # set single gpu train
+        train(1, 1, config)
 
 
 if __name__ == '__main__':
