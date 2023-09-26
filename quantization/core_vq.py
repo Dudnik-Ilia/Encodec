@@ -336,7 +336,8 @@ class ResidualVectorQuantization(nn.Module):
 
     def forward(self, x, n_q: tp.Optional[int] = None):
         quantized_out = 0.0
-        residual = x # x is encoder output emb
+        # x is encoder output emb
+        residual = x
 
         all_losses = []
         all_indices = []
@@ -355,6 +356,11 @@ class ResidualVectorQuantization(nn.Module):
         return quantized_out, out_indices, out_losses
 
     def encode(self, x: torch.Tensor, n_q: tp.Optional[int] = None) -> torch.Tensor:
+        """
+        The true RVQ encoding using VQ layers
+        1st: layer_encode gives the indices to the codebook
+        2nd: layer_decode turns indices to the corresponding vectors
+        """
         residual = x
         all_indices = []
         n_q = n_q or len(self.layers)

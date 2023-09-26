@@ -9,6 +9,7 @@ from torch import nn, Tensor
 
 import quantization as qt
 import modules as m
+import utils
 from utils import _check_checksum, _linear_overlap_add, _get_checkpoint_url
 import random
 
@@ -139,7 +140,7 @@ class EncodecModel(nn.Module):
             assert stride is not None
 
         encoded_frames: tp.List[EncodedFrame] = []
-        # shift windows to choose data
+        # shift windows to choose data; in usual setup frame is the whole X
         for offset in range(0, length, stride):
             frame = x[:, :, offset: offset + segment_length]
             encoded_frames.append(self._encode_frame(frame))
@@ -162,15 +163,15 @@ class EncodecModel(nn.Module):
             scale = scale.view(-1, 1)
         else:
             scale = None
-
-        # [2,1,10000] -> [2,128,32]
+        # Encoder NN
+        # [2,1,24000] -> [2,128,75] ; product(ratios) == 320 --> 24000(length)/320 = 75
         emb = self.encoder(x)
 
         if self.training:
             return emb,scale
         codes = self.quantizer.encode(emb, self.frame_rate, self.bandwidth)
         codes = codes.transpose(0, 1)
-        # codes is [B, K, T], with T frames, K nb of codebooks.
+        # codes is [b, n_q, t], with b batch, n_q num of VQ layers, t time (length X)
         return codes, scale
 
     def decode(self, encoded_frames: tp.List[EncodedFrame]) -> torch.Tensor:
@@ -200,6 +201,8 @@ class EncodecModel(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple[Any, Union[Tensor, Any], List[Tuple[Tensor, Optional[Tensor]]]]:
         # input_wav -> encoder , x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
+        # frames = indices in the codebook (not the quantized vectors, but ENCODED via indices in the book)
+        # In usual setup: frame is one whole tensor X. frames: List([batch,n_q,length_x], scale)
         frames = self.encode(x)
         if self.training:
             # if encodec is training, input_wav -> encoder -> quantizer forward -> decode
@@ -211,12 +214,13 @@ class EncodecModel(nn.Module):
                 torch.distributed.broadcast(index, src=0)
             # fixme: variable bandwidth training, if you broadcast bd, the broadcast will encounter error
             bw = self.target_bandwidths[index.item()]
-            for emb,scale in frames:
-                qv = self.quantizer(emb,self.frame_rate,bw)
+            for emb, scale in frames:
+                # Is it not quantizing 2nd time?
+                qv = self.quantizer(emb, self.frame_rate, bw)
                 # loss_w is the sum of all quantizer forward loss (RVQ commitment loss :l_w)
                 loss_w = loss_w + qv.penalty
-                codes.append((qv.quantized,scale))
-            return self.decode(codes)[:,:,:x.shape[-1]],loss_w,frames
+                codes.append((qv.quantized, scale))
+            return self.decode(codes)[:, :, :x.shape[-1]], loss_w, frames
         else:
             # if encodec is not training, input_wav -> encoder -> quantizer encode -> decode
             return self.decode(frames)[:, :, :x.shape[-1]]
@@ -259,15 +263,21 @@ class EncodecModel(nn.Module):
                    segment: tp.Optional[float] = None,
                    name: str = 'unset',
                    ratios=[8, 5, 4, 2]):
+
         encoder = m.SEANetEncoder(channels=channels, norm=model_norm, causal=causal, ratios=ratios)
         decoder = m.SEANetDecoder(channels=channels, norm=model_norm, causal=causal, ratios=ratios)
-        # int(1000*24//(math.ceil(24000/320)*10)) ?
+
+        # Compression formula: how many VQ layers needed
+        # hop_length is reduction after encoder: 24000/320 = 75 samples per sec
+        # fixme: int(1000*24//(math.ceil(24000/320)*10)) ?
         n_q = int(1000 * target_bandwidths[-1] // (math.ceil(sample_rate / encoder.hop_length) * 10))
+
         quantizer = qt.ResidualVectorQuantizer(
             dimension=encoder.dimension,
             n_q=n_q,
             bins=1024,
         )
+
         model = EncodecModel(
             encoder,
             decoder,
@@ -374,7 +384,7 @@ class EncodecModel(nn.Module):
         return model
 
 
-def test():
+def test_1():
     from itertools import product
     import torchaudio
     bandwidths = [3, 6, 12, 24]
@@ -394,6 +404,23 @@ def test():
         wav_dec = model(wav_in)[0]
         assert wav.shape == wav_dec.shape, (wav.shape, wav_dec.shape)
 
+def test_2():
+    from itertools import product
+    import torchaudio
+    bandwidths = [3, 6, 12, 24]
+    bw = bandwidths[0]
+    model_name = 'encodec_24khz'
+    model = EncodecModel.encodec_model_24khz(pretrained=False)
+    model.set_target_bandwidth(bw)
+    audio_suffix = model_name.split('_')[1][:3]
+
+    wav, sr = torchaudio.load(f"demo/test_{audio_suffix}.wav")
+    wav = utils.convert_audio(wav=wav, sr=sr, target_sr=model.sample_rate, target_channels=model.channels)
+    wav = wav[:, :model.sample_rate * 2]
+    wav_in = wav.unsqueeze(0)
+    wav_dec = model(wav_in)[0]
+    assert wav.shape == wav_dec.shape, (wav.shape, wav_dec.shape)
+
 
 if __name__ == '__main__':
-    test()
+    test_2()

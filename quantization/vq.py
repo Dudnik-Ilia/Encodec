@@ -108,21 +108,23 @@ class ResidualVectorQuantizer(nn.Module):
         return n_q
 
     def get_bandwidth_per_quantizer(self, sample_rate: int):
-        """Return bandwidth per quantizer for a given input sample rate.
+        """Return bandwidth per quantizer for a given input sample rate. Sample rate is the length of the X tensor that is input to VQ
         """
         return math.log2(self.bins) * sample_rate / 1000
 
     def encode(self, x: torch.Tensor, sample_rate: int, bandwidth: tp.Optional[float] = None) -> torch.Tensor:
-        """Encode a given input tensor with the specified sample rate at the given bandwidth.
-        The RVQ encode method sets the appropriate number of quantizer to use
+        """Encode a given input tensor with the specified [sample rate](length of X that is input to VQ)
+        at the given bandwidth. The RVQ encode method sets the appropriate number of quantizer to use
         and returns indices for each quantizer.
         """
         n_q = self.get_num_quantizers_for_bandwidth(sample_rate, bandwidth)
-        codes = self.vq.encode(x, n_q=n_q) # vq.encode output -> out_indices
+        # vq.encode output -> out_indices (to the vectors in codebook) [n_q,batch,length_x]
+        codes = self.vq.encode(x, n_q=n_q)
         return codes
 
     def decode(self, codes: torch.Tensor) -> torch.Tensor:
         """Decode the given codes to the quantized representation.
         """
-        quantized = self.vq.decode(codes) # vq.decode output -> quantized_out
+        # vq.decode output -> quantized_out
+        quantized = self.vq.decode(codes)
         return quantized
