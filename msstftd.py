@@ -1,11 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""MS-STFT discriminator, provided here for reference."""
-
 import typing as tp
 
 import torchaudio
@@ -15,14 +7,12 @@ from einops import rearrange
 
 from modules import NormConv2d
 
-
 FeatureMapType = tp.List[torch.Tensor]
 LogitsType = torch.Tensor
 DiscriminatorOutput = tp.Tuple[tp.List[LogitsType], tp.List[FeatureMapType]]
 
-
 def get_2d_padding(kernel_size: tp.Tuple[int, int], dilation: tp.Tuple[int, int] = (1, 1)):
-    return (((kernel_size[0] - 1) * dilation[0]) // 2, ((kernel_size[1] - 1) * dilation[1]) // 2)
+    return ((kernel_size[0] - 1) * dilation[0]) // 2, ((kernel_size[1] - 1) * dilation[1]) // 2
 
 
 class DiscriminatorSTFT(nn.Module):
@@ -54,14 +44,28 @@ class DiscriminatorSTFT(nn.Module):
         self.filters = filters
         self.in_channels = in_channels
         self.out_channels = out_channels
+        # More n_fft --> more freq resolution
+        # Spectrogram: frequency bins along the vertical axis.
+        # The number of frequency bins is equal to n_fft / 2 + 1.
+        # This is because the FFT of a real-valued signal is symmetric,
+        # and only the positive frequencies are usually considered.
         self.n_fft = n_fft
+        # Specifies the number of samples between successive frames in the spectrogram.
+        # A smaller hop_length provides higher temporal resolution but may increase the number of frames.
         self.hop_length = hop_length
+        # Number of samples in each frame's analysis window.
+        # How to divide the audio.
         self.win_length = win_length
         self.normalized = normalized
+        # Fetch the function(name:activation)
         self.activation = getattr(torch.nn, activation)(**activation_params)
+
+        # Spectrogram as NN module
         self.spec_transform = torchaudio.transforms.Spectrogram(
             n_fft=self.n_fft, hop_length=self.hop_length, win_length=self.win_length, window_fn=torch.hann_window,
             normalized=self.normalized, center=False, pad_mode=None, power=None)
+
+        # Add several layers of Conv2d
         spec_channels = 2 * self.in_channels
         self.convs = nn.ModuleList()
         self.convs.append(
@@ -84,19 +88,24 @@ class DiscriminatorSTFT(nn.Module):
                                     norm=norm)
 
     def forward(self, x: torch.Tensor):
-        """Discriminator STFT Module is the sub module of MultiScaleSTFTDiscriminator.
+        """Discriminator STFT Module is the sub_module of MultiScaleSTFTDiscriminator.
 
         Args:
-            x (torch.Tensor): input tensor of shape [B, 1, Time]
+            x (torch.Tensor): audio, input tensor of shape [B, 1, Time]
 
         Returns:
             z: z is the output of the last convolutional layer of shape
             fmap: fmap is the list of feature maps of every convolutional layer of shape
         """
         fmap = []
-        z = self.spec_transform(x)  # [B, 2, Freq, Frames, 2]
-        z = torch.cat([z.real, z.imag], dim=1)
-        z = rearrange(z, 'b c w t -> b c t w')
+        # z: [B, C, Freq, Frames], complex tensor (e.g. -0.7 + 0.1j)
+        # freq is n_fft // 2 + 1
+        z = self.spec_transform(x)
+        real = z.real
+        imag = z.imag
+        # [B, C*2, F, T]
+        z = torch.cat([real, imag], dim=1)
+        z = rearrange(z, 'b c f t -> b c t f')
         for i, layer in enumerate(self.convs):
             z = layer(z)
             z = self.activation(z)
@@ -107,6 +116,9 @@ class DiscriminatorSTFT(nn.Module):
 
 class MultiScaleSTFTDiscriminator(nn.Module):
     """Multi-Scale STFT (MS-STFT) discriminator.
+        Number of Discriminators depends on len(n_fft)
+        Note: len(n_ffts) == len(hop_lengths) == len(win_lengths)
+
     Args:
         filters (int): Number of filters in convolutions
         in_channels (int): Number of input channels. Default: 1
@@ -117,8 +129,8 @@ class MultiScaleSTFTDiscriminator(nn.Module):
         **kwargs: additional args for STFTDiscriminator
     """
     def __init__(self, filters: int, in_channels: int = 1, out_channels: int = 1,
-                 n_ffts: tp.List[int] = [1024, 2048, 512], hop_lengths: tp.List[int] = [256, 512, 128],
-                 win_lengths: tp.List[int] = [1024, 2048, 512], **kwargs):
+                 n_ffts: tp.List[int] = (1024, 2048, 512), hop_lengths: tp.List[int] = (256, 512, 128),
+                 win_lengths: tp.List[int] = (1024, 2048, 512), **kwargs):
         super().__init__()
         assert len(n_ffts) == len(hop_lengths) == len(win_lengths)
         self.discriminators = nn.ModuleList([
@@ -142,8 +154,7 @@ class MultiScaleSTFTDiscriminator(nn.Module):
         logits = []
         fmaps = []
         for disc in self.discriminators:
-            logit, fmap = disc(x) #
-            #TODO: logits 是否需要downsample + scale是否对齐
+            logit, fmap = disc(x)
             logits.append(logit)
             fmaps.append(fmap)
         return logits, fmaps
@@ -154,6 +165,7 @@ def test():
     y = torch.randn(1, 1, 24000)
     y_hat = torch.randn(1, 1, 24000)
 
+    # [num_discriminators, last_layer_conv_activ], [num_discriminators, 5 conv layers, layer_activ]
     y_disc_r, fmap_r = disc(y)
     y_disc_gen, fmap_gen = disc(y_hat)
     assert len(y_disc_r) == len(y_disc_gen) == len(fmap_r) == len(fmap_gen) == disc.num_discriminators
@@ -161,29 +173,15 @@ def test():
     assert all([len(fm) == 5 for fm in fmap_r + fmap_gen])
     assert all([list(f.shape)[:2] == [1, 32] for fm in fmap_r + fmap_gen for f in fm])
     assert all([len(logits.shape) == 4 for logits in y_disc_r + y_disc_gen])
-    ##################Zhikang Niu Test######################
-    print(type(y_disc_r))
-    print(type(fmap_r))
-    print(type(y_disc_gen))
-    print(type(fmap_gen))
-    # for logits in y_disc_gen:
-        # print(logits.shape) # [1, 1, ?, ?,]
-        # print(logits)
-    # print(len(y_disc_gen)) # len = 3
-    for fmap in fmap_gen:
-        # print(len(fmap))  # len = 5
-        # print(fmap)
+
+    n_fft = (1024, 2048, 512)
+
+    for i, fmap in enumerate(fmap_gen):
+        print("N_fft and window = ", n_fft[i])
+        print("[B,C,T,F]")
         for f in fmap:
             print(f.shape)
-            print("---------------")
         print("+++++++++++++++++++++")
-    # print(len(fmap_gen)) # len = 3
-    print(disc)
-    print(len(fmap_gen))
-    print(len(fmap_gen[0]))
-    print(len(y_disc_gen))
-    print(disc)
-    # norm2d = NormConv2d()
 
 if __name__ == '__main__':
     test()

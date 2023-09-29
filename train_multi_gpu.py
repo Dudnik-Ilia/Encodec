@@ -19,10 +19,11 @@ warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Define train one step function
-def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloader,config,scheduler,disc_scheduler,scaler=None,scaler_disc=None,writer=None):
-    """train one step function
-
+# Define train one-epoch function
+def train_one_epoch(epoch, optimizer, optimizer_disc, model, disc_model,
+                    trainloader, config, scheduler, disc_scheduler,
+                    scaler=None, scaler_disc=None, writer=None):
+    """Train one epoch function
     Args:
         epoch (int): current epoch
         optimizer (_type_) : generator optimizer
@@ -37,19 +38,20 @@ def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloade
     """
     model.train()
     disc_model.train()
-    data_length=len(trainloader)
+    data_length = len(trainloader)
     # Initialize variables to accumulate losses  
     accumulated_loss_g = 0.0  
     accumulated_loss_w = 0.0  
     accumulated_loss_disc = 0.0
 
-    for idx,input_wav in enumerate(trainloader):
-        # warmup learning rate, warmup_epoch is defined in config file,default is 5
-        input_wav = input_wav.contiguous().cuda() #[B, 1, T]: eg. [2, 1, 203760]
+    for idx, input_wav in enumerate(trainloader):
+        # Input: [Batch, Channels, Time]
+        input_wav = input_wav.contiguous().cuda()
         optimizer.zero_grad()
         if config.common.amp: 
             with autocast():
-                output, loss_w, _ = model(input_wav) #output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1] 
+                # output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1]
+                output, loss_w, _ = model(input_wav)
                 logits_real, fmap_real = disc_model(input_wav)
                 logits_fake, fmap_fake = disc_model(output)
                 loss_g = total_loss(fmap_real, logits_fake, fmap_fake, input_wav, output) 
@@ -60,7 +62,9 @@ def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloade
             scaler.update()   
             scheduler.step()  
         else:
-            output, loss_w, _ = model(input_wav) #output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1] 
+            # Basic setup:
+            # output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1]
+            output, loss_w, _ = model(input_wav)
             logits_real, fmap_real = disc_model(input_wav)
             logits_fake, fmap_fake = disc_model(output)
             loss_g = total_loss(fmap_real, logits_fake, fmap_fake, input_wav, output) 
@@ -71,7 +75,8 @@ def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloade
         # Accumulate losses  
         accumulated_loss_g += loss_g.item()  
         accumulated_loss_w += loss_w.item()
-        
+
+        # Train discriminator (after warmup)
         optimizer_disc.zero_grad()
         if config.model.train_discriminator and epoch >= config.lr_scheduler.warmup_epoch:
             if config.common.amp: 
@@ -85,16 +90,21 @@ def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloade
                 scaler_disc.update()  
             else:
                 logits_real, _ = disc_model(input_wav)
-                logits_fake, _ = disc_model(output.detach()) # detach to avoid backpropagation to model
+                # detach to avoid backpropagation to Main model (Encoder and VQ and Decoder)
+                logits_fake, _ = disc_model(output.detach())
                 loss_disc = disc_loss(logits_real, logits_fake)
                 loss_disc.backward() 
                 optimizer_disc.step()
-            
             # Accumulate discriminator loss  
             accumulated_loss_disc += loss_disc.item()
+
+        # Should be called when "Epoch ended"
+        # fixme: But here after each batch
+        # Tell scheduler to change the LR accordingly
         scheduler.step()
         disc_scheduler.step()
 
+        # If not MultiGPUs and interval enough --> write logs
         if (not config.distributed.data_parallel or dist.get_rank() == 0) and (idx % config.common.log_interval == 0 or idx == data_length - 1): 
             log_msg = (  
                 f"Epoch {epoch} {idx+1}/{data_length}\tAvg loss_G: {accumulated_loss_g / (idx + 1):.4f}\tAvg loss_W: {accumulated_loss_w / (idx + 1):.4f}\tlr_G: {optimizer.param_groups[0]['lr']:.6e}\tlr_D: {optimizer_disc.param_groups[0]['lr']:.6e}\t"  
@@ -110,12 +120,15 @@ def train_one_step(epoch,optimizer,optimizer_disc, model, disc_model, trainloade
 def test(epoch,model, disc_model, testloader,config,writer):
     model.eval()
     for idx,input_wav in enumerate(testloader):
-        input_wav = input_wav.cuda() #[B, 1, T]: eg. [2, 1, 203760]
+        # [B, 1, T]: eg. [2, 1, 203760]
+        input_wav = input_wav.cuda()
 
-        output = model(input_wav) #output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1] 
+        # output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1]
+        output = model(input_wav)
         logits_real, fmap_real = disc_model(input_wav)
         logits_fake, fmap_fake = disc_model(output)
-        loss_disc = disc_loss(logits_real, logits_fake) # compute discriminator loss
+        # compute discriminator loss
+        loss_disc = disc_loss(logits_real, logits_fake)
         loss_g = total_loss(fmap_real, logits_fake, fmap_fake, input_wav, output) 
 
     if not config.distributed.data_parallel or dist.get_rank()==0:
@@ -166,7 +179,7 @@ def train(local_rank,world_size,config,tmp_file=None):
     logger.info(f"Encodec Model Parameters: {count_parameters(model)} | Disc Model Parameters: {count_parameters(disc_model)}")
     logger.info(f"model train mode :{model.training} | quantizer train mode :{model.quantizer.training} ")
 
-    # resume training
+    # If continue training
     resume_epoch = 0
     if config.checkpoint.resume:
         # check the checkpoint_path
@@ -184,6 +197,7 @@ def train(local_rank,world_size,config,tmp_file=None):
 
     train_sampler = None
     test_sampler = None
+    # If training multiple GPUs
     if config.distributed.data_parallel:
         # distributed init
         if config.distributed.init_method == "tmp":
@@ -219,6 +233,7 @@ def train(local_rank,world_size,config,tmp_file=None):
     model.cuda()
     disc_model.cuda()
 
+    # Set up DataLoader
     trainloader = torch.utils.data.DataLoader(
         trainset,
         batch_size=config.datasets.batch_size,
@@ -234,17 +249,22 @@ def train(local_rank,world_size,config,tmp_file=None):
     logger.info(f"There are {len(trainloader)} data to train the EnCodec ")
     logger.info(f"There are {len(testloader)} data to test the EnCodec")
 
-    # set optimizer and scheduler, warmup scheduler
+    # Set optimizer
     params = [p for p in model.parameters() if p.requires_grad]
     disc_params = [p for p in disc_model.parameters() if p.requires_grad]
     optimizer = optim.Adam([{'params': params, 'lr': config.optimization.lr}], betas=(0.5, 0.9))
     optimizer_disc = optim.Adam([{'params':disc_params, 'lr': config.optimization.disc_lr}], betas=(0.5, 0.9))
+
+    # Warmup scheduler: changing lr
     scheduler = WarmupCosineLrScheduler(optimizer, max_iter=config.common.max_epoch*len(trainloader), eta_ratio=0.1, warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader), warmup_ratio=1e-4)
     disc_scheduler = WarmupCosineLrScheduler(optimizer_disc, max_iter=config.common.max_epoch*len(trainloader), eta_ratio=0.1, warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader), warmup_ratio=1e-4)
 
+    # Scaler: (AutoMixPrecision) changing data types to speed up computation
+    # Default: False
     scaler = GradScaler() if config.common.amp else None
     scaler_disc = GradScaler() if config.common.amp else None  
 
+    # If continue training
     if config.checkpoint.resume and 'scheduler_state_dict' in model_checkpoint.keys() and 'scheduler_state_dict' in disc_model_checkpoint.keys(): 
         optimizer.load_state_dict(model_checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(model_checkpoint['scheduler_state_dict'])
@@ -252,6 +272,7 @@ def train(local_rank,world_size,config,tmp_file=None):
         disc_scheduler.load_state_dict(disc_model_checkpoint['scheduler_state_dict'])
         logger.info(f"load optimizer and disc_optimizer state_dict from {resume_epoch}")
 
+    # If multi GPUs
     if config.distributed.data_parallel:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         disc_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(disc_model)
@@ -268,13 +289,17 @@ def train(local_rank,world_size,config,tmp_file=None):
             output_device=local_rank,
             broadcast_buffers=False,
             find_unused_parameters=config.distributed.find_unused_parameters)
-    if not config.distributed.data_parallel or dist.get_rank() == 0:  
+
+    if not config.distributed.data_parallel or dist.get_rank() == 0:
+        # Set up writer to log events
         writer = SummaryWriter(log_dir=f'{config.checkpoint.save_folder}/runs')  
     else:  
-        writer = None  
-    start_epoch = max(1,resume_epoch+1) # start epoch is 1 if not resume
+        writer = None
+
+    # start epoch is 1 if not resume
+    start_epoch = max(1,resume_epoch+1)
     for epoch in range(start_epoch, config.common.max_epoch+1):
-        train_one_step(
+        train_one_epoch(
             epoch, optimizer, optimizer_disc, 
             model, disc_model, trainloader,config,
             scheduler,disc_scheduler,scaler,scaler_disc,writer)

@@ -189,11 +189,13 @@ class EncodecModel(nn.Module):
 
     def _decode_frame(self, encoded_frame: EncodedFrame) -> torch.Tensor:
         codes, scale = encoded_frame
+        # Embeddings are the transformed vectors (not indices)
         if self.training:
             emb = codes
         else:
             codes = codes.transpose(0, 1)
             emb = self.quantizer.decode(codes)
+        # Decoder NN
         out = self.decoder(emb)
         if scale is not None:
             out = out * scale.view(-1, 1, 1)
