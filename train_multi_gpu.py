@@ -12,6 +12,7 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast  
 from torch.utils.tensorboard import SummaryWriter
 import hydra
+from hydra.utils import get_original_cwd
 import logging
 import warnings
 warnings.filterwarnings("ignore")
@@ -139,8 +140,9 @@ def test(epoch,model, disc_model, testloader,config,writer):
 
 def train(local_rank,world_size,config,tmp_file=None):
     """train main function."""
+    checkpoint_folder = os.path.join(config.common.main_dir, os.path.normpath(config.checkpoint.save_folder))
     # set logger
-    file_handler = logging.FileHandler(f"{config.checkpoint.save_folder}/train_encodec_bs{config.datasets.batch_size}_lr{config.optimization.lr}.log")
+    file_handler = logging.FileHandler(f"{checkpoint_folder}/train_encodec_bs{config.datasets.batch_size}_lr{config.optimization.lr}.log")
     formatter = logging.Formatter('%(asctime)s: %(levelname)s: [%(filename)s: %(lineno)d]: %(message)s')
     file_handler.setFormatter(formatter)
 
@@ -197,6 +199,7 @@ def train(local_rank,world_size,config,tmp_file=None):
 
     train_sampler = None
     test_sampler = None
+
     # If training multiple GPUs
     if config.distributed.data_parallel:
         # distributed init
@@ -229,9 +232,11 @@ def train(local_rank,world_size,config,tmp_file=None):
         # set distributed sampler
         train_sampler = torch.utils.data.distributed.DistributedSampler(trainset)
         test_sampler = torch.utils.data.distributed.DistributedSampler(testset)
-    
-    model.cuda()
-    disc_model.cuda()
+
+    # Move to GPU
+    if torch.cuda.is_available():
+        model.cuda()
+        disc_model.cuda()
 
     # Set up DataLoader
     trainloader = torch.utils.data.DataLoader(
@@ -246,8 +251,8 @@ def train(local_rank,world_size,config,tmp_file=None):
         sampler=test_sampler, 
         shuffle=False, collate_fn=collate_fn,
         pin_memory=config.datasets.pin_memory)
-    logger.info(f"There are {len(trainloader)} data to train the EnCodec ")
-    logger.info(f"There are {len(testloader)} data to test the EnCodec")
+    logger.info(f"There are {len(trainloader)} batches to train the EnCodec ")
+    logger.info(f"There are {len(testloader)} batches to test the EnCodec")
 
     # Set optimizer
     params = [p for p in model.parameters() if p.requires_grad]
@@ -256,8 +261,16 @@ def train(local_rank,world_size,config,tmp_file=None):
     optimizer_disc = optim.Adam([{'params':disc_params, 'lr': config.optimization.disc_lr}], betas=(0.5, 0.9))
 
     # Warmup scheduler: changing lr
-    scheduler = WarmupCosineLrScheduler(optimizer, max_iter=config.common.max_epoch*len(trainloader), eta_ratio=0.1, warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader), warmup_ratio=1e-4)
-    disc_scheduler = WarmupCosineLrScheduler(optimizer_disc, max_iter=config.common.max_epoch*len(trainloader), eta_ratio=0.1, warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader), warmup_ratio=1e-4)
+    scheduler = WarmupCosineLrScheduler(optimizer,
+                                        max_iter=config.common.max_epoch*len(trainloader),
+                                        eta_ratio=0.1,
+                                        warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader),
+                                        warmup_ratio=1e-4)
+    disc_scheduler = WarmupCosineLrScheduler(optimizer_disc,
+                                             max_iter=config.common.max_epoch*len(trainloader),
+                                             eta_ratio=0.1,
+                                             warmup_iter=config.lr_scheduler.warmup_epoch*len(trainloader),
+                                             warmup_ratio=1e-4)
 
     # Scaler: (AutoMixPrecision) changing data types to speed up computation
     # Default: False
@@ -292,7 +305,7 @@ def train(local_rank,world_size,config,tmp_file=None):
 
     if not config.distributed.data_parallel or dist.get_rank() == 0:
         # Set up writer to log events
-        writer = SummaryWriter(log_dir=f'{config.checkpoint.save_folder}/runs')  
+        writer = SummaryWriter(log_dir=f'{checkpoint_folder}/runs')
     else:  
         writer = None
 
@@ -318,15 +331,22 @@ def train(local_rank,world_size,config,tmp_file=None):
 
 @hydra.main(config_path='config', config_name='config')
 def main(config):
-    # set distributed debug, if you encouter some multi gpu bug, please set torch_distributed_debug=True
+    # Since hydra is set, cur work dir is changed to the ones with the logs
+    # Need the original one for the data
+    config.common.main_dir = get_original_cwd()
+
+    # Set distributed debug: if you encounter some multi gpu bug, please set torch_distributed_debug=True
     if config.distributed.torch_distributed_debug: 
         os.environ["TORCH_CPP_LOG_LEVEL"]="INFO"
         os.environ["TORCH_DISTRIBUTED_DEBUG"]="DETAIL"
-    if not os.path.exists(config.checkpoint.save_folder):
-        os.makedirs(config.checkpoint.save_folder)
+    # Set the checkpoint folder under main dir
+    checkpoint_folder = os.path.join(config.common.main_dir, os.path.normpath(config.checkpoint.save_folder))
+    if not os.path.exists(checkpoint_folder):
+        os.makedirs(checkpoint_folder)
 
-    # disable cudnn
-    torch.backends.cudnn.enabled = False
+    # disable cudnn, why?
+    # torch.backends.cudnn.enabled = False
+
     # set distributed computing (GPUs)
     if config.distributed.data_parallel:
         # number of GPUs

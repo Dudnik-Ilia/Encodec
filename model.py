@@ -406,17 +406,18 @@ def test_1():
         wav_dec = model(wav_in)[0]
         assert wav.shape == wav_dec.shape, (wav.shape, wav_dec.shape)
 
-def test_2():
-    from itertools import product
+def test_2(file: str):
+    """
+    test Encodec on the test file
+    """
     import torchaudio
     bandwidths = [3, 6, 12, 24]
     bw = bandwidths[0]
-    model_name = 'encodec_24khz'
+
     model = EncodecModel.encodec_model_24khz(pretrained=False)
     model.set_target_bandwidth(bw)
-    audio_suffix = model_name.split('_')[1][:3]
 
-    wav, sr = torchaudio.load(f"demo/test_{audio_suffix}.wav")
+    wav, sr = torchaudio.load(file)
     wav = utils.convert_audio(wav=wav, sr=sr, target_sr=model.sample_rate, target_channels=model.channels)
     wav = wav[:, :model.sample_rate * 2]
     wav_in = wav.unsqueeze(0)
@@ -425,4 +426,4 @@ def test_2():
 
 
 if __name__ == '__main__':
-    test_2()
+    test_2("demo/test_44100hz.wav")
