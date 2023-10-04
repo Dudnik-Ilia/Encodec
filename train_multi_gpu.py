@@ -47,7 +47,10 @@ def train_one_epoch(epoch, optimizer, optimizer_disc, model, disc_model,
 
     for idx, input_wav in enumerate(trainloader):
         # Input: [Batch, Channels, Time]
-        input_wav = input_wav.contiguous().cuda()
+        if torch.cuda.is_available():
+            input_wav = input_wav.contiguous().cuda()
+        else:
+            input_wav = input_wav.contiguous()
         optimizer.zero_grad()
         if config.common.amp: 
             with autocast():
@@ -64,8 +67,10 @@ def train_one_epoch(epoch, optimizer, optimizer_disc, model, disc_model,
             scheduler.step()  
         else:
             # Basic setup:
-            # output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1]
+            # output: [B, 1, T]: eg. [6, 1, 72000] | loss_w: [1]
             output, loss_w, _ = model(input_wav)
+            # Fmaps are internal outputs of convolutions in Disc model
+            # Logits is the activation(last conv layer)
             logits_real, fmap_real = disc_model(input_wav)
             logits_fake, fmap_fake = disc_model(output)
             loss_g = total_loss(fmap_real, logits_fake, fmap_fake, input_wav, output) 
@@ -122,7 +127,10 @@ def test(epoch,model, disc_model, testloader,config,writer):
     model.eval()
     for idx,input_wav in enumerate(testloader):
         # [B, 1, T]: eg. [2, 1, 203760]
-        input_wav = input_wav.cuda()
+        if torch.cuda.is_available():
+            input_wav = input_wav.cuda()
+        else:
+            input_wav = input_wav
 
         # output: [B, 1, T]: eg. [2, 1, 203760] | loss_w: [1]
         output = model(input_wav)
@@ -309,22 +317,24 @@ def train(local_rank,world_size,config,tmp_file=None):
     else:  
         writer = None
 
-    # start epoch is 1 if not resume
-    start_epoch = max(1,resume_epoch+1)
+    # Start epoch is 1 if not resume
+    start_epoch = max(1, resume_epoch+1)
     for epoch in range(start_epoch, config.common.max_epoch+1):
         train_one_epoch(
             epoch, optimizer, optimizer_disc, 
-            model, disc_model, trainloader,config,
-            scheduler,disc_scheduler,scaler,scaler_disc,writer)
+            model, disc_model, trainloader, config,
+            scheduler, disc_scheduler, scaler, scaler_disc, writer)
         if epoch % config.common.test_interval == 0:
-            test(epoch,model,disc_model,testloader,config,writer)
-        # save checkpoint and epoch
+            test(epoch, model, disc_model, testloader, config, writer)
+        # Save checkpoint and epoch
         if epoch % config.common.save_interval == 0:
             model_to_save = model.module if config.distributed.data_parallel else model
             disc_model_to_save = disc_model.module if config.distributed.data_parallel else disc_model 
             if not config.distributed.data_parallel or dist.get_rank() == 0:  
-                save_master_checkpoint(epoch, model_to_save, optimizer, scheduler, f'{config.checkpoint.save_location}epoch{epoch}_lr{config.optimization.lr}.pt')  
-                save_master_checkpoint(epoch, disc_model_to_save, optimizer_disc, disc_scheduler, f'{config.checkpoint.save_location}epoch{epoch}_disc_lr{config.optimization.lr}.pt') 
+                save_master_checkpoint(epoch, model_to_save, optimizer, scheduler,
+                                       f'{config.checkpoint.save_location}ep{epoch}_lr{config.optimization.lr}.pt')
+                save_master_checkpoint(epoch, disc_model_to_save, optimizer_disc, disc_scheduler,
+                                       f'{config.checkpoint.save_location}ep{epoch}_disc_lr{config.optimization.lr}.pt')
 
     if config.distributed.data_parallel:
         dist.destroy_process_group()
@@ -337,15 +347,16 @@ def main(config):
 
     # Set distributed debug: if you encounter some multi gpu bug, please set torch_distributed_debug=True
     if config.distributed.torch_distributed_debug: 
-        os.environ["TORCH_CPP_LOG_LEVEL"]="INFO"
-        os.environ["TORCH_DISTRIBUTED_DEBUG"]="DETAIL"
+        os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
+        os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
     # Set the checkpoint folder under main dir
     checkpoint_folder = os.path.join(config.common.main_dir, os.path.normpath(config.checkpoint.save_folder))
     if not os.path.exists(checkpoint_folder):
         os.makedirs(checkpoint_folder)
 
-    # disable cudnn, why?
-    # torch.backends.cudnn.enabled = False
+    # Turn off cuda if not available
+    if not torch.cuda.is_available():
+        torch.backends.cudnn.enabled = False
 
     # set distributed computing (GPUs)
     if config.distributed.data_parallel:
