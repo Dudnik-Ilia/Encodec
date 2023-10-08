@@ -72,11 +72,6 @@ libxcb
 libxml2
 libzlib
 llvmlite
-m2w64-gcc-libgfortran
-m2w64-gcc-libs
-m2w64-gcc-libs-core
-m2w64-gmp
-m2w64-libwinpthread-git
 markdown
 markupsafe
 matplotlib
@@ -86,7 +81,6 @@ mkl_fft
 mkl_random
 mpmath
 msgpack-python
-msys2-conda-epoch
 networkx
 ninja
 numba
@@ -105,7 +99,6 @@ platformdirs
 pooch
 protobuf
 pthread-stubs
-pthreads-win32
 pyasn1
 pyasn1-modules
 pycparser
@@ -143,11 +136,7 @@ torchvision
 tqdm
 typing-extensions
 typing_extensions
-ucrt
 urllib3
-vc
-vc14_runtime
-vs2015_runtime
 werkzeug
 wheel
 win_inet_pton
