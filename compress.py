@@ -1,7 +1,6 @@
 """API to compress/decompress audio to bytestreams."""
 
 import io
-import math
 import struct
 import time
 import typing as tp

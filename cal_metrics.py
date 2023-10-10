@@ -1,4 +1,5 @@
-# core codes are copy from https://github.com/yangdongchao/AcademiCodec/tree/master/evaluation_metric/calculate_voc_obj_metrics/metrics
+# core codes  are copy from
+# https://github.com/yangdongchao/AcademiCodec/tree/master/evaluation_metric/calculate_voc_obj_metrics/metrics
 import os
 import argparse
 from pesq import pesq,cypesq

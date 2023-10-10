@@ -5,11 +5,12 @@ common:
   max_epoch: 100
   seed: 3401
   amp: False
-  main_dir: 'C:\Users\dudni\PycharmProjects\encodec-pytorch'
+  main_dir: "${env:HOME}/Encodec/"
 
 datasets:
-  train_csv_path: 'C:\Users\dudni\PycharmProjects\encodec-pytorch\datasets\librispeech_dataset_train.csv'
-  test_csv_path: 'C:\Users\dudni\PycharmProjects\encodec-pytorch\datasets\librispeech_dataset_test.csv'
+  # where csv files are, not the data!
+  train_csv_path: '${env:TMPDIR}/${env:SLURM_JOBID}/datasets/librispeech_dataset_train.csv'
+  test_csv_path: '${env:TMPDIR}/${env:SLURM_JOBID}/datasets/librispeech_dataset_test.csv'
   batch_size: 6
   tensor_cut: 72000
   num_workers: 0
@@ -20,7 +21,7 @@ checkpoint:
   resume: False
   checkpoint_path: ''
   disc_checkpoint_path: ''
-  save_folder: 'C:\Users\dudni\PycharmProjects\encodec-pytorch\checkpoints\'
+  save_folder: '${env:WORK}/checkpoints/'
   save_location: '${checkpoint.save_folder}/bs${datasets.batch_size}_cut${datasets.tensor_cut}_length${datasets.fixed_length}_' 
 
 optimization:

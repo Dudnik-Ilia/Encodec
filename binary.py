@@ -1,9 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 """Raw binary format for Encodec compressed audio. Actual compression API is in `encodec.compress`."""
 
 import io
@@ -14,7 +8,7 @@ import typing as tp
 # format is `ECDC` magic code, followed by the header size as uint32.
 # Then an uint8 indicates the protocol version (0.)
 # The header is then provided as json and should contain all required
-# informations for decoding. A raw stream of bytes is then provided
+# information for decoding. A raw stream of bytes is then provided
 # and should be interpretable using the json header.
 _encodec_header_struct = struct.Struct('!4sBI')
 _ENCODEC_MAGIC = b'ECDC'

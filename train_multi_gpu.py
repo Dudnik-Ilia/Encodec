@@ -12,7 +12,6 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast  
 from torch.utils.tensorboard import SummaryWriter
 import hydra
-from hydra.utils import get_original_cwd
 import logging
 import warnings
 warnings.filterwarnings("ignore")
@@ -123,7 +122,7 @@ def train_one_epoch(epoch, optimizer, optimizer_disc, model, disc_model,
             logger.info(log_msg) 
 
 @torch.no_grad()
-def test(epoch,model, disc_model, testloader,config,writer):
+def test(epoch,model,disc_model,testloader,config,writer):
     model.eval()
     for idx,input_wav in enumerate(testloader):
         # [B, 1, T]: eg. [2, 1, 203760]
@@ -147,8 +146,12 @@ def test(epoch,model, disc_model, testloader,config,writer):
         logger.info(log_msg) 
 
 def train(local_rank,world_size,config,tmp_file=None):
-    """train main function."""
-    checkpoint_folder = os.path.join(config.common.main_dir, os.path.normpath(config.checkpoint.save_folder))
+    """train main function
+    args:
+        world_size - how many GPUs
+        local_rank - rank of the current process (should be between 1 and world_size), for parallel
+    """
+    checkpoint_folder = os.path.normpath(config.checkpoint.save_folder)
     # set logger
     file_handler = logging.FileHandler(f"{checkpoint_folder}/train_encodec_bs{config.datasets.batch_size}_lr{config.optimization.lr}.log")
     formatter = logging.Formatter('%(asctime)s: %(levelname)s: [%(filename)s: %(lineno)d]: %(message)s')
@@ -209,6 +212,7 @@ def train(local_rank,world_size,config,tmp_file=None):
     test_sampler = None
 
     # If training multiple GPUs
+    # https://pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
     if config.distributed.data_parallel:
         # distributed init
         if config.distributed.init_method == "tmp":
@@ -339,18 +343,17 @@ def train(local_rank,world_size,config,tmp_file=None):
     if config.distributed.data_parallel:
         dist.destroy_process_group()
 
+# Since hydra is set, cur work dir is changed to the ones with the logs
 @hydra.main(config_path='config', config_name='config')
 def main(config):
-    # Since hydra is set, cur work dir is changed to the ones with the logs
-    # Need the original one for the data
-    config.common.main_dir = get_original_cwd()
 
     # Set distributed debug: if you encounter some multi gpu bug, please set torch_distributed_debug=True
     if config.distributed.torch_distributed_debug: 
         os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
         os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
-    # Set the checkpoint folder under main dir
-    checkpoint_folder = os.path.join(config.common.main_dir, os.path.normpath(config.checkpoint.save_folder))
+
+    # Set the checkpoint folder
+    checkpoint_folder = os.path.normpath(config.checkpoint.save_folder)
     if not os.path.exists(checkpoint_folder):
         os.makedirs(checkpoint_folder)
 
