@@ -2,6 +2,7 @@
 #SBATCH --job-name=encodec_training
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
+#SBATCH --partition=rtx3080
 #SBATCH --output=LOG_%x.%j.out
 #SBATCH --error=LOG_%x.%j.err
 #SBATCH --mail-type=end,fail
@@ -22,7 +23,7 @@ module load cudnn
 
 # Conda
 source activate vector-quantize
-echo "Job_bash: Activated conda env"
+echo "Job_bash: Activated conda env: ${CONDA_DEFAULT_ENV}"
 
 # create a temporary job dir on $TMPDIR
 echo "Job_bash: TMPDIR is ${TMPDIR}"
@@ -70,7 +71,7 @@ ENCODEC_SET=encodec320x_ratios8542
 DATASET=libri_train100h_test
 python train_multi_gpu.py \
                     --config-name=config_HPC \
-                    hydra.run.dir=${WORK}/hydra_outputs/${ENCODEC_SET}_${DATASET}
+                    hydra.run.dir=${WORK}/hydra_outputs/${SLURM_JOBID}/${ENCODEC_SET}_${DATASET}
                      # datasets.fixed_length=500 \
 
 echo "Job_bash: Finished"
