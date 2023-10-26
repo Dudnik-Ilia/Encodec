@@ -14,7 +14,7 @@ class CustomAudioDataset(torch.utils.data.Dataset):
             file_dir = config.datasets.test_csv_path
         file_dir = os.path.normpath(file_dir)
         assert len(config.common.main_dir) > 0
-        assert os.path.exists(file_dir)
+        assert os.path.exists(file_dir), "Given: "+file_dir
         self.audio_files = pd.read_csv(file_dir, sep="/n", on_bad_lines='skip')
         self.transform = transform
         # Num of samples
