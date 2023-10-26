@@ -73,7 +73,7 @@ python train_multi_gpu.py
                     config_path=${HOME}/Encodec/config
                     config_name=config_HPC.yaml
                     datasets.fixed_length=500 \
-                    hydra.run.dir=/hydra_outputs/${ENCODEC_SET}_${DATASET}
+                    hydra.run.dir=${WORK}/hydra_outputs/${ENCODEC_SET}_${DATASET}
 
 echo "Job_bash: Finished"
 
