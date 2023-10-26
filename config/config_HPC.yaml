@@ -5,12 +5,12 @@ common:
   max_epoch: 100
   seed: 3401
   amp: False
-  main_dir: "${env:HOME}/Encodec/"
+  main_dir: "${oc.env:HOME}/Encodec/"
 
 datasets:
   # where csv files are, not the data!
-  train_csv_path: "${env:TMPDIR}/${env:SLURM_JOBID}/datasets/librispeech_dataset_train.csv"
-  test_csv_path: "${env:TMPDIR}/${env:SLURM_JOBID}/datasets/librispeech_dataset_test.csv"
+  train_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_train.csv"
+  test_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_test.csv"
   batch_size: 6
   tensor_cut: 72000
   num_workers: 0
@@ -21,7 +21,7 @@ checkpoint:
   resume: False
   checkpoint_path: ""
   disc_checkpoint_path: ""
-  save_folder: "${env:WORK}/checkpoints/"
+  save_folder: "${oc.env:WORK}/checkpoints/"
   save_location: "${checkpoint.save_folder}/bs${datasets.batch_size}_cut${datasets.tensor_cut}_length${datasets.fixed_length}"
 
 optimization:
