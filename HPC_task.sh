@@ -70,8 +70,7 @@ echo "Job_bash: Begin training"
 ENCODEC_SET=encodec320x_ratios8542
 DATASET=libri_train100h_test
 python train_multi_gpu.py \
-                    +config_path=${HOME}/Encodec/config \
-                    +config_name=config_HPC.yaml \
+                    --config-name=config_HPC \
                     datasets.fixed_length=500 \
                     hydra.run.dir=${WORK}/hydra_outputs/${ENCODEC_SET}_${DATASET}
 
