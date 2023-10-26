@@ -31,9 +31,13 @@ echo "Job_bash: JobID is ${SLURM_JOBID}"
 mkdir $TMPDIR/$SLURM_JOBID
 cd $TMPDIR/$SLURM_JOBID
 
+# Assign names of data file to variables
+TRAIN_FILE="train-clean-100.tar.gz"
+TEST_FILE="test-clean.tar.gz"
+
 # COPY THE DATA ON THE NODE
-cp $WORK/test-clean.tar.gz .
-cp $WORK/train-clean-100.tar.gz .
+cp $WORK/$TEST_FILE .
+cp $WORK/$TRAIN_FILE .
 echo "Job_bash: copied the data to node"
 
 mkdir datasets
@@ -43,9 +47,9 @@ cd data
 echo "Job_bash: created dir for data"
 
 # Now in $TMPDIR/$SLURM_JOBID/datasets/data
-tar -xzf $TMPDIR/$SLURM_JOBID/test-clean.tar.gz
+tar -xzf $TMPDIR/$SLURM_JOBID/$TEST_FILE
 echo "Job_bash: unpacked test"
-tar -xzf $TMPDIR/$SLURM_JOBID/train-clean-100.tar.gz
+tar -xzf $TMPDIR/$SLURM_JOBID/$TRAIN_FILE
 echo "Job_bash: unpacked train"
 # Data lies at $TMPDIR/$SLURM_JOBID/datasets/data/LibriSpeech
 
@@ -54,7 +58,7 @@ cd ../
 # Generate descriptive csv files
 source $HOME/Encodec/datasets/generate_csv.sh
 
-cd $WORKDIR
+cd $HOME/Encodec
 
 # copy input file from location where job was submitted, and run
 # cp -r ${SLURM_SUBMIT_DIR}/. .
@@ -62,7 +66,14 @@ cd $WORKDIR
 
 python -c "import torch; print(torch.cuda.is_available()); print(torch.version.cuda);"
 echo "Job_bash: Begin training"
-source $HOME/Encodec/HPC_task.sh
+
+ENCODEC_SET=encodec320x_ratios8542
+DATASET=libri_train100h_test
+python train_multi_gpu.py
+                    config_path=${HOME}/Encodec/config
+                    config_name=config_HPC.yaml
+                    datasets.fixed_length=500 \
+                    hydra.run.dir=/hydra_outputs/${ENCODEC_SET}_${DATASET}
 
 echo "Job_bash: Finished"
 
