@@ -18,12 +18,19 @@ export https_proxy=http://proxy:80
 
 module purge
 module load python
-module load cuda
-module load cudnn
+# module load cuda
+# module load cudnn
 
 # Conda
 source activate vector-quantize
 echo "Job_bash: Activated conda env: ${CONDA_DEFAULT_ENV}"
+
+python -c "import torch; print('Cuda is_available: ',torch.cuda.is_available()); print('Cuda version: ',torch.version.cuda);"
+
+if ! python -c "import torch; print(torch.cuda.is_available())"; then
+    echo "CUDA is not available. Exiting the batch job."
+    exit 1
+fi
 
 # create a temporary job dir on $TMPDIR
 echo "Job_bash: TMPDIR is ${TMPDIR}"
@@ -64,7 +71,6 @@ cd $HOME/Encodec
 # cp -r ${SLURM_SUBMIT_DIR}/. .
 # mkdir -p output/
 
-python -c "import torch; print('Cuda is_available: ',torch.cuda.is_available()); print('Cuda version: ',torch.version.cuda);"
 echo "Job_bash: Begin training"
 
 ENCODEC_SET=encodec320x_ratios8542
