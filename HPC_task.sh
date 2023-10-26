@@ -1,12 +1,11 @@
 #!/bin/bash -l
 #SBATCH --job-name=encodec_training
-#SBATCH --clusters=tinygpu
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --output=R-%x.%j.out
-#SBATCH --error=R-%x.%j.err
+#SBATCH --output=LOG_%x.%j.out
+#SBATCH --error=LOG_%x.%j.err
 #SBATCH --mail-type=end,fail
-#SBATCH --time=00:5:00
+#SBATCH --time=24:00:00
 #SBATCH --export=NONE
 unset SLURM_EXPORT_ENV # These 2 commands give var from env
 
@@ -18,8 +17,8 @@ export https_proxy=http://proxy:80
 
 module purge
 module load python
-# module load cuda
-# module load cudnn
+module load cuda
+module load cudnn
 
 # Conda
 source activate vector-quantize
@@ -64,15 +63,15 @@ cd $HOME/Encodec
 # cp -r ${SLURM_SUBMIT_DIR}/. .
 # mkdir -p output/
 
-python -c "import torch; print(torch.cuda.is_available()); print(torch.version.cuda);"
+python -c "import torch; print('Cuda is_available: ',torch.cuda.is_available()); print('Cuda version: ',torch.version.cuda);"
 echo "Job_bash: Begin training"
 
 ENCODEC_SET=encodec320x_ratios8542
 DATASET=libri_train100h_test
 python train_multi_gpu.py \
                     --config-name=config_HPC \
-                    datasets.fixed_length=500 \
                     hydra.run.dir=${WORK}/hydra_outputs/${ENCODEC_SET}_${DATASET}
+                     # datasets.fixed_length=500 \
 
 echo "Job_bash: Finished"
 
