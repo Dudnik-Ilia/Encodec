@@ -27,7 +27,7 @@ echo "Job_bash: Activated conda env: ${CONDA_DEFAULT_ENV}"
 
 python -c "import torch; print('Cuda is_available: ',torch.cuda.is_available()); print('Cuda version: ',torch.version.cuda);"
 
-if ! python -c "import torch; print(torch.cuda.is_available())"; then
+if ! python -c "torch.cuda.is_available()"; then
     echo "CUDA is not available. Exiting the batch job."
     exit 1
 fi
