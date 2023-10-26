@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create a csv description files for train and test
-TRAIN_WITHOUT_EXT="${TRAIN_FILE%.*}"
-TEST_WITHOUT_EXT="${TEST_FILE%.*}"
+TRAIN_WITHOUT_EXT=$(basename "$TRAIN_FILE" .tar.gz)
+TEST_WITHOUT_EXT=$(basename "$TEST_FILE" .tar.gz)
 
 input_file='$TMPDIR/$SLURM_JOBID/datasets/data/LibriSpeech/$TRAIN_WITHOUT_EXT'
 output_file='$TMPDIR/$SLURM_JOBID/datasets/librispeech_dataset_train.csv'
