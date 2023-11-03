@@ -6,7 +6,7 @@
 #SBATCH --output=LOG_%x.%j.out
 #SBATCH --error=LOG_%x.%j.err
 #SBATCH --mail-type=end,fail
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --export=NONE
 unset SLURM_EXPORT_ENV # These 2 commands give var from env
 
@@ -17,12 +17,12 @@ export http_proxy=http://proxy:80
 export https_proxy=http://proxy:80
 
 module purge
-module load python
+module load python/3.10-anaconda
 # module load cuda
 # module load cudnn
 
 # Conda
-source activate vector-quantize
+source activate encodec_copy
 echo "Job_bash: Activated conda env: ${CONDA_DEFAULT_ENV}"
 
 python -c "import torch; print('Cuda is_available: ',torch.cuda.is_available()); print('Cuda version: ',torch.version.cuda);"
@@ -42,16 +42,16 @@ cd $TMPDIR/$SLURM_JOBID
 TRAIN_FILE="train-clean-100.tar.gz"
 TEST_FILE="test-clean.tar.gz"
 
-# COPY THE DATA ON THE NODE
+# COPY THE DATA from WORK to the Node at $TMPDIR/$SLURM_JOBID
 cp $WORK/$TEST_FILE .
 cp $WORK/$TRAIN_FILE .
 echo "Job_bash: copied the data to node"
 
+# create dir for data
 mkdir datasets
 cd datasets
 mkdir data
 cd data
-echo "Job_bash: created dir for data"
 
 # Now in $TMPDIR/$SLURM_JOBID/datasets/data
 tar -xzf $TMPDIR/$SLURM_JOBID/$TEST_FILE

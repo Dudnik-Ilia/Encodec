@@ -1,4 +1,6 @@
 python=3.8.5
+# cuda=11.8.0
+# cudnn
 librosa
 einops
 hydra-core
