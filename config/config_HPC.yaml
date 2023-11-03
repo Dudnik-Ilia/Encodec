@@ -11,8 +11,8 @@ datasets:
   # where csv files are, not the data!
   train_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_train.csv"
   test_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_test.csv"
-  batch_size: 6
-  tensor_cut: 72000
+  batch_size: 3
+  tensor_cut: 36000
   num_workers: 0
   fixed_length: 0
   pin_memory: True
