@@ -16,8 +16,8 @@ source ~/.bashrc
 export http_proxy=http://proxy:80
 export https_proxy=http://proxy:80
 
-module purge
-module load python/3.10-anaconda
+# module purge
+# module load python/3.10-anaconda
 # module load cuda
 # module load cudnn
 
