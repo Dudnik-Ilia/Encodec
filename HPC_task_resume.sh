@@ -1,12 +1,12 @@
 #!/bin/bash -l
-#SBATCH --job-name=encodec_training
+#SBATCH --job-name=encodec_training_resume_360
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
-#SBATCH --partition=rtx3080
+#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=a100
 #SBATCH --output=LOG_%x.%j.out
 #SBATCH --error=LOG_%x.%j.err
 #SBATCH --mail-type=end,fail
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --export=NONE
 unset SLURM_EXPORT_ENV # These 2 commands give var from env
 
@@ -39,7 +39,7 @@ mkdir $TMPDIR/$SLURM_JOBID
 cd $TMPDIR/$SLURM_JOBID
 
 # Assign names of data file to variables
-TRAIN_FILE="train-clean-100.tar.gz"
+TRAIN_FILE="train-clean-360.tar.gz"
 TEST_FILE="test-clean.tar.gz"
 
 # COPY THE DATA from WORK to the Node at $TMPDIR/$SLURM_JOBID
@@ -70,9 +70,9 @@ cd $HOME/Encodec
 echo "Job_bash: Begin training"
 
 ENCODEC_SET=encodec320x_ratios8542
-DATASET=libri_train100h_test
+DATASET=libri_train360h_test
 python train_multi_gpu.py \
-                    --config-name=config_HPC \
+                    --config-name=config_HPC_resume \
                     hydra.run.dir=${WORK}/hydra_outputs/${SLURM_JOBID}/${ENCODEC_SET}_${DATASET}
                      # datasets.fixed_length=500 \
 

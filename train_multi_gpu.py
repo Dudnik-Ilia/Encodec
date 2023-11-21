@@ -199,6 +199,9 @@ def train(local_rank,world_size,config,tmp_file=None):
         assert config.checkpoint.checkpoint_path != '', "resume path is empty"
         assert config.checkpoint.disc_checkpoint_path != '', "disc resume path is empty"
 
+        logger.info(f"Resuming training!")
+        # Why map_location CPU Info: You can call torch.load(.., map_location='cpu') and then load_state_dict()
+        # to avoid GPU RAM surge when loading a model checkpoint.
         model_checkpoint = torch.load(config.checkpoint.checkpoint_path, map_location='cpu')
         disc_model_checkpoint = torch.load(config.checkpoint.disc_checkpoint_path, map_location='cpu')
         model.load_state_dict(model_checkpoint['model_state_dict'])
@@ -206,7 +209,7 @@ def train(local_rank,world_size,config,tmp_file=None):
         resume_epoch = model_checkpoint['epoch']
         if resume_epoch >= config.common.max_epoch:
             raise ValueError(f"resume epoch {resume_epoch} is larger than total epochs {config.common.epochs}")
-        logger.info(f"load chenckpoint of model and disc_model, resume from {resume_epoch}")
+        logger.info(f"load checkpoints of model and disc_model, resume from {resume_epoch}")
 
     train_sampler = None
     test_sampler = None
@@ -289,7 +292,7 @@ def train(local_rank,world_size,config,tmp_file=None):
     scaler = GradScaler() if config.common.amp else None
     scaler_disc = GradScaler() if config.common.amp else None  
 
-    # If continue training
+    # If continue training: load optimizer and scheduler states from checkpoints
     if config.checkpoint.resume and 'scheduler_state_dict' in model_checkpoint.keys() and 'scheduler_state_dict' in disc_model_checkpoint.keys(): 
         optimizer.load_state_dict(model_checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(model_checkpoint['scheduler_state_dict'])

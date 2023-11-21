@@ -1,0 +1,55 @@
+common:
+  save_interval: 1
+  test_interval: 2
+  log_interval: 2
+  max_epoch: 100
+  seed: 3401
+  amp: False
+  main_dir: "${oc.env:HOME}/Encodec/"
+
+datasets:
+  # where csv files are, not the data!
+  train_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_train.csv"
+  test_csv_path: "${oc.env:TMPDIR}/${oc.env:SLURM_JOBID}/datasets/librispeech_dataset_test.csv"
+  batch_size: 6
+  tensor_cut: 36000
+  num_workers: 0
+  fixed_length: 0
+  pin_memory: True
+
+checkpoint:
+  resume: True
+  checkpoint_path: "${oc.env:WORK}/checkpoints/680242/bs3_cut36000_length0ep12_lr0.0003.pt"
+  disc_checkpoint_path: "${oc.env:WORK}/checkpoints/680242/bs3_cut36000_length0ep12_disc_lr0.0003.pt"
+  save_folder: "${oc.env:WORK}/checkpoints/${oc.env:SLURM_JOBID}/"
+  save_location: "${checkpoint.save_folder}/bs${datasets.batch_size}_cut${datasets.tensor_cut}_length${datasets.fixed_length}"
+
+optimization:
+  lr: 3e-4
+  disc_lr: 3e-4
+
+lr_scheduler:
+  warmup_epoch: 1
+
+model:
+  target_bandwidths: [1.5, 3., 6., 12., 24.]
+  sample_rate: 24_000
+  channels: 1
+  train_discriminator: True
+  audio_normalize: True
+  filters: 32
+  ratios: [8, 5, 4, 2]
+  disc_win_lengths: [1024, 2048, 512]
+  disc_hop_lengths: [256, 512, 128]
+  disc_n_ffts: [1024, 2048, 512]
+
+distributed:
+  data_parallel: False
+  world_size: 1
+  find_unused_parameters: False
+  torch_distributed_debug: False
+  init_method: tmp
+
+
+
+

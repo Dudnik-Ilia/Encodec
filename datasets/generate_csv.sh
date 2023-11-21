@@ -1,5 +1,7 @@
 #!/bin/bash
 # Create a csv description files for train and test
+# Input: This bash file is called from HPC task bash file where $TRAIN_FILE and $TEST_FILE are already specified
+# Output: Created csv files with names "librispeech_dataset_train" and "librispeech_dataset_test"
 TRAIN_WITHOUT_EXT=$(basename "$TRAIN_FILE" .tar.gz)
 TEST_WITHOUT_EXT=$(basename "$TEST_FILE" .tar.gz)
 
