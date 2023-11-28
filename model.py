@@ -361,7 +361,7 @@ class EncodecModel(nn.Module):
                 target_bandwidths, sample_rate, channels,
                 causal=False, model_norm='time_group_norm', audio_normalize=True,
                 segment=None, name='my_encodec',ratios=ratios)
-        pre_dic = torch.load(checkpoint)['model_state_dict']
+        pre_dic = torch.load(checkpoint, map_location='cpu')['model_state_dict']
         model.load_state_dict({k.replace('quantizer.model','quantizer.vq'):v for k,v in pre_dic.items()})
         model.eval()
         return model
