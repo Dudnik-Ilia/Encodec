@@ -8,6 +8,7 @@ before_dot=${INPUT_FILE%%.*}
 base_name=$(basename ${before_dot})
 # echo "OUTPUT DIR -> $OUTPUT_DIR"
 
+
 # check the model name is empty or encodec_24khz
 if [ -z "$MODEL_NAME" ]; then
     MODEL_NAME=encodec_24khz
