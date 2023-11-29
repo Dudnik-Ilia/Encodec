@@ -56,9 +56,9 @@ def fatal(*args):
 
 
 def check_output_exists(args):
-    if not args.output.parent.exists():
+    if not Path(args.output).parent.exists():
         fatal(f"Output folder for {args.output} does not exist.")
-    if args.output.exists() and not args.force:
+    if Path(args.output).exists() and not args.force:
         fatal(f"Output file {args.output} exist. Use -f / --force to overwrite.")
 
 
@@ -127,11 +127,11 @@ def cli_main(args):
         fatal(f"Bandwidth {args.bandwidth} is not supported by the model {model_name}")
     model.set_target_bandwidth(args.bandwidth)
     
-    if args.input.is_dir():
+    if Path(args.input).is_dir():
         output_root = args.output
         input_root = args.input
-        if not output_root.exists():
-            output_root.mkdir(parents=True)
+        if not Path(output_root).exists():
+            Path(output_root).mkdir(parents=True)
         for root, dirs, files in os.walk(input_root):
             for file in files:
                 if file.lower().endswith(('.flac', '.wav')):
@@ -141,11 +141,11 @@ def cli_main(args):
                     output_wav_file = os.path.join(output_root, output_name)
                     args.output = output_wav_file
                     main(args, model)
-    elif args.input.is_file():
+    elif Path(args.input).is_file():
         main(args,model)
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    if not args.input.exists():
+    if not Path(args.input).exists():
         fatal(f"Input file {args.input} does not exist.")
     cli_main(args)
