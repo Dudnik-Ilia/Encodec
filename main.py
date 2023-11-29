@@ -73,14 +73,16 @@ def check_clipping(wav, args):
             "To avoid clipping, use the `-r` option to rescale the output.",
             file=sys.stderr)
 
+def suffix(file: str):
+    return file.split('.')[-1]
 
 def main(args,model):
     # if args.input.suffix.lower() == SUFFIX:
-    if args.input.split('.')[-1].lower() == SUFFIX:
+    if suffix(args.input).lower() == SUFFIX:
         # Decompression
         if args.output is None:
             args.output = args.input.with_name(args.input.stem + args.decompress_suffix).with_suffix('.wav')
-        elif args.output.suffix.lower() != '.wav':
+        elif suffix(args.output).lower() != '.wav':
             fatal("Output extension must be .wav")
         check_output_exists(args)
         out, out_sample_rate = decompress(args.input.read_bytes())
@@ -90,18 +92,18 @@ def main(args,model):
         # Compression
         if args.output is None:
             args.output = args.input.with_suffix(SUFFIX)
-        elif args.output.suffix.lower() not in [SUFFIX, '.wav']:
-            fatal(f"Output extension must be .wav or {SUFFIX}")
+        elif suffix(args.output).lower() not in [SUFFIX, '.wav', '.flac']:
+            fatal(f"Output extension must be one of {[SUFFIX, '.wav', '.flac']}")
         check_output_exists(args)
 
         wav, sr = torchaudio.load(args.input)
         wav = convert_audio(wav, sr, model.sample_rate, model.channels)
         compressed = compress(model, wav, use_lm=args.lm)
-        if args.output.suffix.lower() == SUFFIX:
+        if suffix(args.output).lower() == SUFFIX:
             args.output.write_bytes(compressed)
         else:
             # Directly run decompression stage
-            assert args.output.suffix.lower() == '.wav'
+            assert suffix(args.output).lower() == '.wav'
             out, out_sample_rate = decompress(model,compressed)
             check_clipping(out, args)
             save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
