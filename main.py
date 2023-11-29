@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 import sys
-
+import os
 import torchaudio
 
 from compress import compress, decompress, MODELS
@@ -129,14 +129,15 @@ def cli_main(args):
         input_root = args.input
         if not output_root.exists():
             output_root.mkdir(parents=True)
-        for wav in args.input.glob('**/*.wav'):
-            print(f"Processing {wav}")
-            relative_path = wav.relative_to(input_root)
-            args.input = wav
-            output_path = output_root.joinpath(relative_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            args.output = output_path.with_name(output_path.stem + f"_bw{args.bandwidth}.wav")
-            main(args,model)
+        for root, dirs, files in os.walk(input_root):
+            for file in files:
+                if file.lower().endswith(('.flac', '.wav')):
+                    print(f"Processing {file}")
+                    args.input = os.path.join(root, file)
+                    output_name = file.split('.')[0] + "-" + str(args.bandwidth) + ".wav"
+                    output_wav_file = os.path.join(output_root, output_name)
+                    args.output = output_wav_file
+                    main(args, model)
     elif args.input.is_file():
         main(args,model)
 
