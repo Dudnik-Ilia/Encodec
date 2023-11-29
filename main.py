@@ -75,7 +75,8 @@ def check_clipping(wav, args):
 
 
 def main(args,model):
-    if args.input.suffix.lower() == SUFFIX:
+    # if args.input.suffix.lower() == SUFFIX:
+    if args.input.split('.')[-1].lower() == SUFFIX:
         # Decompression
         if args.output is None:
             args.output = args.input.with_name(args.input.stem + args.decompress_suffix).with_suffix('.wav')
