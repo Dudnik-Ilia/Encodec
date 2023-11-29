@@ -8,7 +8,7 @@ from compress import compress, decompress, MODELS
 from utils import save_audio, convert_audio
 # Test the model for 1 audio
 # Compression and decompression scripts
-SUFFIX = '.ecdc'
+SUFFIX = 'ecdc'
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -82,8 +82,8 @@ def main(args,model):
         # Decompression
         if args.output is None:
             args.output = args.input.with_name(args.input.stem + args.decompress_suffix).with_suffix('.wav')
-        elif suffix(args.output).lower() != '.wav':
-            fatal("Output extension must be .wav")
+        elif suffix(args.output).lower() != 'wav':
+            fatal("Output extension must be wav")
         check_output_exists(args)
         out, out_sample_rate = decompress(args.input.read_bytes())
         check_clipping(out, args)
@@ -92,8 +92,8 @@ def main(args,model):
         # Compression
         if args.output is None:
             args.output = args.input.with_suffix(SUFFIX)
-        elif suffix(args.output).lower() not in [SUFFIX, '.wav', '.flac']:
-            fatal(f"Output extension must be one of {[SUFFIX, '.wav', '.flac']}")
+        elif suffix(args.output).lower() not in [SUFFIX, 'wav', 'flac']:
+            fatal(f"Output extension must be one of {[SUFFIX, 'wav', 'flac']}")
         check_output_exists(args)
 
         wav, sr = torchaudio.load(args.input)
@@ -103,7 +103,7 @@ def main(args,model):
             args.output.write_bytes(compressed)
         else:
             # Directly run decompression stage
-            assert suffix(args.output).lower() == '.wav'
+            assert suffix(args.output).lower() == 'wav'
             out, out_sample_rate = decompress(model,compressed)
             check_clipping(out, args)
             save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
