@@ -167,11 +167,12 @@ def compress(model: EncodecModel, wav: torch.Tensor, use_lm: bool = False) -> by
     return fo.getvalue()
 
 
-def decompress(model:EncodecModel,compressed: bytes, device='cpu') -> tp.Tuple[torch.Tensor, int]:
+def decompress(model: EncodecModel, compressed: bytes, device='cpu') -> tp.Tuple[torch.Tensor, int]:
     """Decompress from a file-object.
     Returns a tuple `(wav, sample_rate)`.
 
     Args:
+        model: EncodecModel
         compressed (bytes): compressed bytes.
         device: device to use to perform the computations.
     """

@@ -77,6 +77,22 @@ def suffix(file: str):
     return file.split('.')[-1]
 
 def main(args,model):
+
+    if args.return_object:
+        if suffix(args.input).lower() == SUFFIX:
+            # Decompress
+            out, out_sample_rate = decompress(model, args.input.read_bytes())
+            return out, out_sample_rate
+        if suffix(args.input).lower() in ['wav', 'flac']:
+            # Compress + Decompress
+            wav, sr = torchaudio.load(args.input)
+            wav = convert_audio(wav, sr, model.sample_rate, model.channels)
+            compressed = compress(model, wav, use_lm=args.lm)
+            out, out_sample_rate = decompress(model, compressed)
+            return out, out_sample_rate
+        else:
+            fatal(f"Input extension must be one of {[SUFFIX, 'wav', 'flac']}")
+
     # if args.input.suffix.lower() == SUFFIX:
     if suffix(args.input).lower() == SUFFIX:
         # Decompression
@@ -85,7 +101,7 @@ def main(args,model):
         elif suffix(args.output).lower() != 'wav':
             fatal("Output extension must be wav")
         check_output_exists(args)
-        out, out_sample_rate = decompress(args.input.read_bytes())
+        out, out_sample_rate = decompress(model, args.input.read_bytes())
         check_clipping(out, args)
         save_audio(out, args.output, out_sample_rate, rescale=args.rescale)
     else:
