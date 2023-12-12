@@ -87,12 +87,9 @@ def main(args,model):
         if suffix(args.input).lower() in ['wav', 'flac']:
             # Compress + Decompress
             wav, sr = torchaudio.load(args.input)
-            print(wav.shape)
             wav = convert_audio(wav, sr, model.sample_rate, model.channels)
             compressed = compress(model, wav, use_lm=args.lm)
-            print(len(compressed))
             out, out_sample_rate = decompress(model, compressed)
-            print(out.shape)
             return out, out_sample_rate
         else:
             fatal(f"Input extension must be one of {[SUFFIX, 'wav', 'flac']}")
@@ -162,7 +159,11 @@ def cli_main(args):
                     args.output = output_wav_file
                     main(args, model)
     elif Path(args.input).is_file():
-        main(args,model)
+        # If processing one file, and we need to pass the objects (decoded eventually) back
+        if args.return_object:
+            return main(args, model)
+        else:
+            main(args, model)
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
