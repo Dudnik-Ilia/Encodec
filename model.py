@@ -2,6 +2,7 @@ import math
 from pathlib import Path
 import typing as tp
 from typing import Tuple, Any, Union, List, Optional
+import os
 
 import numpy as np
 import torch
@@ -381,12 +382,11 @@ class EncodecModel(nn.Module):
         return model
 
     @staticmethod
-    def my_encodec_model(checkpoint: str,ratios=[8,5,4,2]):
+    def my_encodec_model(checkpoint: str, ratios=[8,5,4,2]):
         """Return the pretrained 24khz model.
         """
-        import os
         assert os.path.exists(checkpoint), "checkpoint not exists"
-        print("loading model from: ",checkpoint)
+        print("loading model from: ", checkpoint)
         target_bandwidths = [1.5, 3., 6, 12., 24.]
         sample_rate = 24_000
         channels = 1
