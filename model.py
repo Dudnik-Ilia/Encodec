@@ -361,6 +361,7 @@ class EncodecModel(nn.Module):
         model.eval()
         return model
 
+
     @staticmethod
     def my_encodec_model(checkpoint: str, ratios=[8, 5, 4, 2]):
         """Return the pretrained 24khz model.
