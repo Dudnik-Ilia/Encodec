@@ -362,6 +362,27 @@ class EncodecModel(nn.Module):
         return model
 
     @staticmethod
+    def my_encodec_model(checkpoint: str, ratios=[8, 5, 4, 2]):
+        """Return the pretrained 24khz model.
+        """
+        assert os.path.exists(checkpoint), "checkpoint not exists"
+        print("loading model from: ", checkpoint)
+        target_bandwidths = [1.5, 3., 6, 12., 24.]
+        sample_rate = 24_000
+        channels = 1
+        model = EncodecModel._get_model(
+            target_bandwidths, sample_rate, channels,
+            causal=False, model_norm='time_group_norm', audio_normalize=True,
+            segment=None, name='my_encodec', ratios=ratios)
+        pre_dic = torch.load(checkpoint, map_location='cpu')['model_state_dict']
+        model.load_state_dict(
+            {k.replace('quantizer.model', 'quantizer.vq'):
+                 v for k, v in pre_dic.items()}
+        )
+        model.eval()
+        return model
+
+    @staticmethod
     def encodec_model_48khz(pretrained: bool = True, repository: tp.Optional[Path] = None):
         """Return the pretrained 48khz model.
         """
@@ -378,27 +399,6 @@ class EncodecModel(nn.Module):
         if pretrained:
             state_dict = EncodecModel._get_pretrained(checkpoint_name, repository)
             model.load_state_dict(state_dict)
-        model.eval()
-        return model
-
-    @staticmethod
-    def my_encodec_model(checkpoint: str, ratios=[8,5,4,2]):
-        """Return the pretrained 24khz model.
-        """
-        assert os.path.exists(checkpoint), "checkpoint not exists"
-        print("loading model from: ", checkpoint)
-        target_bandwidths = [1.5, 3., 6, 12., 24.]
-        sample_rate = 24_000
-        channels = 1
-        model = EncodecModel._get_model(
-                target_bandwidths, sample_rate, channels,
-                causal=False, model_norm='time_group_norm', audio_normalize=True,
-                segment=None, name='my_encodec',ratios=ratios)
-        pre_dic = torch.load(checkpoint, map_location='cpu')['model_state_dict']
-        model.load_state_dict(
-            {k.replace('quantizer.model','quantizer.vq'):
-                                   v for k,v in pre_dic.items()}
-        )
         model.eval()
         return model
 
