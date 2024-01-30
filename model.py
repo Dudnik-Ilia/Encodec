@@ -147,39 +147,6 @@ class EncodecModel(nn.Module):
             encoded_frames.append(self._encode_frame(frame))
         return encoded_frames
 
-    def encode_decode_no_vq(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        X is the audio tensor, being encoded+decoded without using VQ
-        """
-        # x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
-        assert x.dim() == 3
-        _, channels, length = x.shape
-        assert 0 < channels <= 2
-        segment_length = self.segment_length
-        # segment_length = 1*sample_rate
-        if segment_length is None:
-            # Usual setup => segment length == length ->> one frame only
-            segment_length = length
-            stride = length
-        else:
-            stride = self.segment_stride  # type: ignore
-            assert stride is not None
-
-        encoded_frames: tp.List[torch.Tensor] = []
-        # shift windows to choose data; in usual setup frame is the whole X
-        for offset in range(0, length, stride):
-            frame = x[:, :, offset: offset + segment_length]
-            encoded_frames.append(self.encoder(frame))
-
-        segment_length = self.segment_length
-        if segment_length is None:
-            # in usual case only 1 frame
-            assert len(encoded_frames) == 1
-            return self.decoder(encoded_frames[0])
-
-        frames = [self.decoder(frame) for frame in encoded_frames]
-        return _linear_overlap_add(frames, self.segment_stride or 1)
-
     def _encode_frame(self, x: torch.Tensor) -> EncodedFrame:
         """X is a frame of the input tensor to the net
         Goes via Encoder NN and Quantization
@@ -234,6 +201,39 @@ class EncodecModel(nn.Module):
         if scale is not None:
             out = out * scale.view(-1, 1, 1)
         return out
+
+    def encode_decode_no_vq(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        X is the audio tensor, being encoded+decoded without using VQ
+        """
+        # x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
+        assert x.dim() == 3
+        _, channels, length = x.shape
+        assert 0 < channels <= 2
+        segment_length = self.segment_length
+        # segment_length = 1*sample_rate
+        if segment_length is None:
+            # Usual setup => segment length == length ->> one frame only
+            segment_length = length
+            stride = length
+        else:
+            stride = self.segment_stride  # type: ignore
+            assert stride is not None
+
+        encoded_frames: tp.List[torch.Tensor] = []
+        # shift windows to choose data; in usual setup frame is the whole X
+        for offset in range(0, length, stride):
+            frame = x[:, :, offset: offset + segment_length]
+            encoded_frames.append(self.encoder(frame))
+
+        segment_length = self.segment_length
+        if segment_length is None:
+            # in usual case only 1 frame
+            assert len(encoded_frames) == 1
+            return self.decoder(encoded_frames[0])
+
+        frames = [self.decoder(frame) for frame in encoded_frames]
+        return _linear_overlap_add(frames, self.segment_stride or 1)
 
     def forward(self, x: torch.Tensor) -> Tuple[Any, Union[Tensor, Any], List[Tuple[Tensor, Optional[Tensor]]]]:
         # input_wav -> encoder , x.shape = [BatchSize,channel,tensor_cut or original length] 2,1,10000
@@ -401,7 +401,7 @@ class EncodecModel(nn.Module):
         )
         model.eval()
         return model
-    
+
     @staticmethod
     def encodec_model_bw(checkpoint: str, bandwidth: float):
         """Return target bw model, if you train a model in a single bandwidth
