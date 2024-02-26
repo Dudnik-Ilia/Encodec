@@ -81,6 +81,8 @@ def disc_loss(logits_real, logits_fake):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     loss_multi_disc = torch.tensor([0.0], device=device, requires_grad=True)
     for disc in range(len(logits_real)):
+        # instead of max function we could use RELU here, which for pos values outputs positives
+        # And for negative stays zero
         loss_disc = torch.mean(relu(1-logits_real[disc])) + torch.mean(relu(1+logits_fake[disc]))
         loss_multi_disc = loss_multi_disc + loss_disc
     loss_multi_disc = loss_multi_disc / len(logits_real)

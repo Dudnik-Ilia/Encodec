@@ -5,6 +5,22 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 
+def duplicate_paths_in_csv(csv_path):
+    """
+    Duplicate each line (path) in the CSV file
+    Used for doubling the real audios dataset
+    """
+    # Read the original CSV file
+    with open(csv_path, 'r') as original_file:
+        lines = original_file.readlines()
+
+    lines = lines+lines
+
+    # Write the duplicated lines back to the CSV file
+    with open(csv_path, 'w') as duplicated_file:
+        duplicated_file.writelines(lines)
+
+
 def generate_csv(file_dir, csv_path):
     """
     Generate description csv file about audio files in file_dir
@@ -35,7 +51,7 @@ def split_train_test_csv(csv_path, threshold=0.8):
 
     train_data.to_csv(f'{Path(csv_path).stem}_train.csv', index=False)
     test_data.to_csv(f'{Path(csv_path).stem}_test.csv', index=False)
-
+    return f'{Path(csv_path).stem}_train.csv', f'{Path(csv_path).stem}_test.csv'
 
 if __name__ == '__main__':
     arg = argparse.ArgumentParser()
