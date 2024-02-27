@@ -15,8 +15,8 @@ datasets:
   disc_train_fake_csv: "to be filled by train script"
   disc_test_real_csv: "to be filled by train script"
   disc_test_fake_csv: "to be filled by train script"
-  batch_size: 3
-  tensor_cut: 36000
+  batch_size: 12
+  tensor_cut: 48000
   num_workers: 0
   fixed_length: 0
   pin_memory: True
@@ -25,7 +25,7 @@ checkpoint:
   resume: False
   checkpoint_path: ""
   disc_checkpoint_path: ""
-  save_folder: "${oc.env:WORK}/checkpoints/${oc.env:SLURM_JOBID}/"
+  save_folder: "${oc.env:WORK}/checkpoints/Disc/${oc.env:SLURM_JOBID}/"
   save_location: "${checkpoint.save_folder}/bs${datasets.batch_size}_cut${datasets.tensor_cut}_length${datasets.fixed_length}"
 
 optimization:
@@ -33,7 +33,7 @@ optimization:
   disc_lr: 3e-4
 
 lr_scheduler:
-  warmup_epoch: 5
+  warmup_epoch: 0
 
 model:
   target_bandwidths: [1.5, 3., 6., 12., 24.]

@@ -72,7 +72,6 @@ def train_one_epoch(epoch, optimizer_disc, disc_model,
         warmup_scheduler (_type_): warmup learning rate
     """
     disc_model.train()
-    data_length = len(trainloader_real)
 
     # Initialize variables to accumulate losses
     accumulated_loss_disc = 0.0
@@ -80,8 +79,10 @@ def train_one_epoch(epoch, optimizer_disc, disc_model,
     i = 0
     for fake_data, real_data in zip(trainloader_fake, trainloader_real):
 
-        fake_inputs = fake_data
+        if i == 0:
+            print("Batch dim:", fake_data.shape, " and ", real_data.shape)
 
+        fake_inputs = fake_data
         real_inputs = real_data
 
         # Input: [Batch, Channels, Time]
