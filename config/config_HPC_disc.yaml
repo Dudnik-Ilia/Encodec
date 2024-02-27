@@ -2,7 +2,7 @@ common:
   save_interval: 2
   test_interval: 2
   log_interval: 2
-  max_epoch: 300
+  max_epoch: 600
   seed: 42
   amp: False
   main_dir: "${oc.env:HOME}/Encodec/"
