@@ -168,7 +168,7 @@ def train(local_rank, world_size, config, tmp_file=None):
     WORK = "/home/woody/iwi1/iwi1010h"
     OUTPUT_DIR = WORK + "/Compression_analysis"
     OUTPUT_DIR_SOUNDSTREAM = OUTPUT_DIR + "/SoundStream"
-    OUTPUT_DIR_ENCODEC = OUTPUT_DIR + "/Encodec"+"/24.0"
+    OUTPUT_DIR_ENCODEC = OUTPUT_DIR + "/Encodec"
     OUTPUT_DIR_NEW_ENCODEC = OUTPUT_DIR_ENCODEC + "/New_encodec"
     TMPDIR = os.environ.get('TMPDIR')
     SLURM_JOBID = os.environ.get('SLURM_JOBID')
@@ -176,11 +176,11 @@ def train(local_rank, world_size, config, tmp_file=None):
     # Move Fake
     input_directories = [
         os.path.normpath(OUTPUT_DIR_SOUNDSTREAM),
-        os.path.normpath(OUTPUT_DIR_ENCODEC),
+        os.path.normpath(OUTPUT_DIR_ENCODEC+"/24.0"),
         os.path.normpath(OUTPUT_DIR_NEW_ENCODEC)
     ]
-    output_directory = os.path.normpath(os.path.join(TMPDIR,SLURM_JOBID,"Fake_dir"))
-    compress_and_move(input_directories, output_directory, cut=500)# 500 audios each
+    output_directory = os.path.normpath(os.path.join(TMPDIR,SLURM_JOBID, "Fake_dir"))
+    compress_and_move(input_directories, output_directory, cut=500) # 500 audios each
     print("Moved fake")
 
     # Create description csv files FAKE
