@@ -39,7 +39,7 @@ def compress_and_move(input_dirs, output_dir, cut):
         assert len(audio_files) == cut
         # Create a zip archive for each input directory
         archive_name = os.path.basename(input_dir) + '.zip'
-        archive_path = os.path.join(output_dir, archive_name)
+        archive_path = os.path.join(input_dir, archive_name)
         with zipfile.ZipFile(archive_path, 'w') as zipf:
             for audio_file in audio_files:
                 audio_path = os.path.join(input_dir, audio_file)
