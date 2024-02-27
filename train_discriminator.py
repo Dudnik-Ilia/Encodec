@@ -43,7 +43,7 @@ def compress_and_move(input_dirs, output_dir, cut):
         with zipfile.ZipFile(archive_path, 'w') as zipf:
             for audio_file in audio_files:
                 audio_path = os.path.join(input_dir, audio_file)
-                zipf.write(audio_path, arcname=audio_file)
+                zipf.write(audio_path, arcname=os.path.basename(input_dir)+"_"+audio_file)
 
         # Move the zip archive to the output directory
         shutil.move(archive_path, output_dir)
@@ -77,11 +77,12 @@ def train_one_epoch(epoch, optimizer_disc, disc_model,
     # Initialize variables to accumulate losses
     accumulated_loss_disc = 0.0
 
+    i = 0
     for fake_data, real_data in zip(trainloader_fake, trainloader_real):
 
-        idx_fake, fake_inputs = fake_data
+        fake_inputs = fake_data
 
-        idx_real, real_inputs = real_data
+        real_inputs = real_data
 
         # Input: [Batch, Channels, Time]
         if torch.cuda.is_available():
@@ -103,10 +104,11 @@ def train_one_epoch(epoch, optimizer_disc, disc_model,
 
         disc_scheduler.step()
 
-        log_msg = f"loss_disc: {accumulated_loss_disc / (idx_real + 1) :.4f}"
-        writer.add_scalar('Train/Loss_Disc', accumulated_loss_disc / (idx_real + 1),
-                          (epoch - 1) * len(trainloader_real) + idx_real)
+        log_msg = f"loss_disc: {accumulated_loss_disc / (i + 1) :.4f}"
+        writer.add_scalar('Train/Loss_Disc', accumulated_loss_disc / (i + 1),
+                          (epoch - 1) * len(trainloader_real) + i)
         logger.info(log_msg)
+        i+=1
 
 
 @torch.no_grad()
@@ -114,9 +116,9 @@ def test(epoch, disc_model, testloader_real, testloader_fake, config, writer):
     disc_model.eval()
     for fake_data, real_data in zip(testloader_fake, testloader_real):
 
-        idx_fake, fake_inputs = fake_data
+        fake_inputs = fake_data
 
-        idx_real, real_inputs = real_data
+        real_inputs = real_data
 
         # [B, 1, T]: eg. [2, 1, 203760]
         if torch.cuda.is_available():
