@@ -47,7 +47,6 @@ def compress_and_move(input_dirs, output_dir, cut):
 
         # Move the zip archive to the output directory
         shutil.move(archive_path, output_dir)
-        os.remove(archive_path)
 
     # Extract each archive in the output directory
     for archive_file in os.listdir(output_dir):
