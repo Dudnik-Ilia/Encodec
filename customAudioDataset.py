@@ -7,7 +7,8 @@ from utils import convert_audio
 
 class CustomAudioDataset(torch.utils.data.Dataset):
     def __init__(self, config, transform=None,mode='train'):
-        assert mode in ['train', 'test'], 'dataset mode must be train or test'
+        assert mode in ['train', 'test', 'disc_real', 'disc_fake', 'disc_real_test','disc_fake_test'], \
+            'dataset mode must be one of the specified'
         if mode == 'train':
             file_dir = config.datasets.train_csv_path
         elif mode == 'test':
@@ -18,7 +19,7 @@ class CustomAudioDataset(torch.utils.data.Dataset):
             file_dir = config.datasets.disc_train_fake_csv
         elif mode == 'disc_real_test':
             file_dir = config.datasets.disc_test_real_csv
-        elif mode == 'disc_fake_rest':
+        elif mode == 'disc_fake_test':
             file_dir = config.datasets.disc_test_fake_csv
         else:
             raise "file_dir is not defined"
