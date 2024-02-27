@@ -15,7 +15,7 @@ datasets:
   disc_train_fake_csv: "to be filled by train script"
   disc_test_real_csv: "to be filled by train script"
   disc_test_fake_csv: "to be filled by train script"
-  batch_size: 12
+  batch_size: 16
   tensor_cut: 48000
   num_workers: 0
   fixed_length: 0
@@ -30,10 +30,10 @@ checkpoint:
 
 optimization:
   lr: 3e-4
-  disc_lr: 3e-2
+  disc_lr: 3e-3
 
 lr_scheduler:
-  warmup_epoch: 3
+  warmup_epoch: 0
 
 model:
   target_bandwidths: [1.5, 3., 6., 12., 24.]
