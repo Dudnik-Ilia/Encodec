@@ -181,7 +181,7 @@ def train(local_rank, world_size, config, tmp_file=None):
         os.path.normpath(OUTPUT_DIR_NEW_ENCODEC)
     ]
     output_directory = os.path.normpath(os.path.join(TMPDIR,SLURM_JOBID,"Fake_dir"))
-    compress_and_move(input_directories, output_directory, cut=500) # 500 audios each
+    compress_and_move(input_directories, output_directory, cut=500)# 500 audios each
     print("Moved fake")
 
     # Create description csv files FAKE
@@ -199,15 +199,15 @@ def train(local_rank, world_size, config, tmp_file=None):
         os.path.normpath(DATA_IN_ONE_DIR)
     ]
     output_directory = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID, "Real_dir"))
-    compress_and_move(input_directories, output_directory, cut=750) # 750 real audios so that we double them
+    compress_and_move(input_directories, output_directory, cut=1500)# 1500 real audios
     print("Moved real")
 
     # Create description csv files REAL
     input_dir_for_csv = output_directory
-    csv_file = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID,"disc_real.csv"))
-    generate_csv(input_dir_for_csv,csv_file)
-    # Dpuble the size of the real
-    duplicate_paths_in_csv(csv_file)
+    csv_file = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID, "disc_real.csv"))
+    generate_csv(input_dir_for_csv, csv_file)
+    # Double the size of the real
+    # duplicate_paths_in_csv(csv_file)
     real_train_csv, real_test_csv = split_train_test_csv(csv_file)
     config.datasets.disc_train_real_csv = real_train_csv
     config.datasets.disc_test_real_csv = real_test_csv
