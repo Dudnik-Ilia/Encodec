@@ -6,26 +6,21 @@ import random
 from utils import convert_audio
 
 class CustomAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, config, transform=None,mode='train'):
+    def __init__(self, config, file_dir=None, transform=None, mode='train'):
         assert mode in ['train', 'test', 'disc_real', 'disc_fake', 'disc_real_test','disc_fake_test'], \
             'dataset mode must be one of the specified'
         if mode == 'train':
             file_dir = config.datasets.train_csv_path
         elif mode == 'test':
             file_dir = config.datasets.test_csv_path
-        elif mode == 'disc_real':
-            file_dir = config.datasets.disc_train_real_csv
-        elif mode == 'disc_fake':
-            file_dir = config.datasets.disc_train_fake_csv
-        elif mode == 'disc_real_test':
-            file_dir = config.datasets.disc_test_real_csv
-        elif mode == 'disc_fake_test':
-            file_dir = config.datasets.disc_test_fake_csv
+        elif mode in ['disc_real', 'disc_fake', 'disc_real_test', 'disc_fake_test']:
+            # need to provide as a parameter
+            file_dir = file_dir
         else:
-            raise "file_dir is not defined"
+            raise f"file_dir is not defined for mode {mode}"
         file_dir = os.path.normpath(file_dir)
         assert len(config.common.main_dir) > 0
-        assert os.path.exists(file_dir), "Given: "+file_dir+", for mode:"+mode
+        assert os.path.exists(file_dir), f"Given: {file_dir}, for mode: {mode}"
         self.audio_files = pd.read_csv(file_dir, sep="/n", on_bad_lines='skip')
         self.transform = transform
         # Num of samples

@@ -188,8 +188,6 @@ def train(local_rank, world_size, config, tmp_file=None):
     csv_file = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID, "disc_fake.csv"))
     generate_csv(input_dir_for_csv, csv_file)
     fake_train_csv, fake_test_csv = split_train_test_csv(csv_file)
-    config.datasets.disc_train_real_csv = fake_train_csv
-    config.datasets.disc_test_real_csv = fake_test_csv
     print("Generated Real csv files")
 
     # Move Real
@@ -208,15 +206,13 @@ def train(local_rank, world_size, config, tmp_file=None):
     # Double the size of the real
     # duplicate_paths_in_csv(csv_file)
     real_train_csv, real_test_csv = split_train_test_csv(csv_file)
-    config.datasets.disc_train_real_csv = real_train_csv
-    config.datasets.disc_test_real_csv = real_test_csv
     print("Generated Real csv files")
 
     # set train and test datasets for real and fake
-    trainset_real = data.CustomAudioDataset(config=config, mode="disc_real")
-    trainset_fake = data.CustomAudioDataset(config=config, mode="disc_fake")
-    testset_real = data.CustomAudioDataset(config=config, mode='disc_real_test')
-    testset_fake = data.CustomAudioDataset(config=config, mode='disc_fake_test')
+    trainset_real = data.CustomAudioDataset(config=config, file_dir=real_train_csv, mode="disc_real")
+    trainset_fake = data.CustomAudioDataset(config=config, file_dir=fake_train_csv, mode="disc_fake")
+    testset_real = data.CustomAudioDataset(config=config, file_dir=real_test_csv, mode='disc_real_test')
+    testset_fake = data.CustomAudioDataset(config=config, file_dir=fake_test_csv, mode='disc_fake_test')
 
     disc_model = MultiScaleSTFTDiscriminator(filters=config.model.filters,
                                              hop_lengths=config.model.disc_hop_lengths,
