@@ -44,22 +44,16 @@ class CustomAudioDataset(torch.utils.data.Dataset):
             waveform = self.transform(waveform)
 
         # Cut the length of audio
-        if self.tensor_cut > 0:
-            if waveform.size()[1] > self.tensor_cut:
-                # random start point
-                start = random.randint(0, waveform.size()[1]-self.tensor_cut-1)
-                # cut tensor
-                waveform = waveform[:, start:start+self.tensor_cut]
-                if self.class_name is not None:
-                    return waveform, self.class_name
-                else:
-                    return waveform, self.sample_rate
+        if waveform.size()[1] > self.tensor_cut:
+            # random start point
+            start = random.randint(0, waveform.size()[1]-self.tensor_cut-1)
+            # cut tensor
+            waveform = waveform[:, start:start+self.tensor_cut]
+            if self.class_name is not None:
+                return waveform, self.class_name
             else:
-                if self.class_name is not None:
-                    return waveform, self.class_name
-                else:
-                    return waveform, self.sample_rate
-        
+                return waveform, self.sample_rate
+
 
 def pad_sequence(batch):
     # Make all tensor in a batch the same length by padding with zeros
