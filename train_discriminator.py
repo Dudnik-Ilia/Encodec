@@ -6,7 +6,7 @@ from torch import nn
 import customAudioDataset as data
 from customAudioDataset import collate_fn
 from datasets.generate_desc_file import generate_csv, split_train_test_csv
-from test import MAudioDiscriminator
+from my_test import MAudioDiscriminator
 from utils import set_seed, save_master_checkpoint, count_parameters
 from msstftd import MultiScaleSTFTDiscriminator
 from scheduler import WarmupCosineLrScheduler
