@@ -79,11 +79,8 @@ def train_one_epoch(epoch, optimizer_disc, disc_model, classifier,
     accumulated_loss_disc = 0.0
 
     i = 0
-    for smth in trainloader:
+    for wave, label in trainloader:
 
-        print(len(smth))
-        wave = torch.tensor([0])
-        label = torch.tensor([0])
         if i == 0:
             print("Batch dim:", wave.shape, " and ", label.shape)
 

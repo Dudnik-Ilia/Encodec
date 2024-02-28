@@ -49,10 +49,11 @@ class CustomAudioDataset(torch.utils.data.Dataset):
             start = random.randint(0, waveform.size()[1]-self.tensor_cut-1)
             # cut tensor
             waveform = waveform[:, start:start+self.tensor_cut]
-            if self.class_name is not None:
-                return waveform, self.class_name
-            else:
-                return waveform, self.sample_rate
+
+        if self.class_name is not None:
+            return waveform, self.class_name
+        else:
+            return waveform, self.sample_rate
 
 
 def pad_sequence(batch):
@@ -60,7 +61,7 @@ def pad_sequence(batch):
     waves = [item[0].permute(1, 0) for item in batch]
     waves = torch.nn.utils.rnn.pad_sequence(waves, batch_first=True, padding_value=0.)
     waves = waves.permute(0, 2, 1)
-    labels = [item[1] for item in batch]
+    labels = torch.stack([item[1] for item in batch])
     return waves, labels
 
 def collate_fn(batch):

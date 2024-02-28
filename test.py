@@ -1,12 +1,16 @@
+import os
+
 import hydra
 import torch
 from torch import nn
 
+from customAudioDataset import CustomAudioDataset, collate_fn
+from datasets.generate_desc_file import generate_csv
 from model import EncodecModel
 from msstftd import DiscriminatorSTFT, MultiScaleSTFTDiscriminator
 
 CHECKPOINT_OLD = "/home/woody/iwi1/iwi1010h/checkpoints/680242/bs3_cut36000_length0ep12_lr0.0003.pt"
-
+DATA = "C:/Study/Thesis/Test_compression/dev-clean/LibriSpeech/cut_dev_clean/84/121123"
 
 class AudioDiscriminator(nn.Module):
     def __init__(self):
@@ -55,6 +59,26 @@ class MAudioDiscriminator(nn.Module):
 @hydra.main(config_path='config', config_name='config')
 def main(config):
     #model = EncodecModel.my_encodec_model(checkpoint=CHECKPOINT_OLD)
+
+    csv_file = os.path.normpath(os.path.join("C:/Study/Thesis/", "disc_fake.csv"))
+    generate_csv(DATA, csv_file)
+    trainset_real = CustomAudioDataset(config=config, file_dir=csv_file,
+                                            mode="disc_real", class_name=torch.tensor([1]))
+
+    trainset_fake = CustomAudioDataset(config=config, file_dir=csv_file,
+                                       mode="disc_fake", class_name=torch.tensor([0]))
+
+    trainset = torch.utils.data.ConcatDataset([trainset_real, trainset_fake])
+
+    trainloader = torch.utils.data.DataLoader(
+        trainset,
+        batch_size=config.datasets.batch_size,
+        sampler=None,
+        shuffle=True, collate_fn=collate_fn,
+        pin_memory=config.datasets.pin_memory)
+
+    for i in trainloader:
+        print(i)
 
     disc_model = MultiScaleSTFTDiscriminator(filters=config.model.filters,
                                              hop_lengths=config.model.disc_hop_lengths,
