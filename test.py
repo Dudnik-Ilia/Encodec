@@ -40,7 +40,7 @@ class AudioDiscriminator(nn.Module):
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = x.view(-1)
+        x = x.squeeze()
         x = self.fc_layers(x)
         return x
 
@@ -87,7 +87,7 @@ def main(config):
 
     classifier = MAudioDiscriminator()
 
-    x = torch.rand(size=(1, 1, 48000))
+    x = torch.rand(size=(16, 1, 48000))
     logits, _ = disc_model(x)
 
     pred = classifier(logits)
