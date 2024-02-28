@@ -61,7 +61,7 @@ def pad_sequence(batch):
     waves = [item[0].permute(1, 0) for item in batch]
     waves = torch.nn.utils.rnn.pad_sequence(waves, batch_first=True, padding_value=0.)
     waves = waves.permute(0, 2, 1)
-    labels = torch.stack([item[1] for item in batch])
+    labels = torch.stack([item[1] for item in batch]).float()
     return waves, labels
 
 def collate_fn(batch):
