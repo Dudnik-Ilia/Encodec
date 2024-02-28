@@ -121,7 +121,7 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def save_master_checkpoint(epoch, model, optimizer, scheduler, ckpt_name):  
+def save_master_checkpoint(epoch, model, optimizer, scheduler, ckpt_name, classifier=None):
     """save master checkpoint
 
     Args:
@@ -136,7 +136,11 @@ def save_master_checkpoint(epoch, model, optimizer, scheduler, ckpt_name):
         'model_state_dict': model.state_dict(),  
         'optimizer_state_dict': optimizer.state_dict(),  
         'scheduler_state_dict': scheduler.state_dict(),  
-    }  
+    }
+
+    if classifier is not None:
+        state_dict["classifier_state_dict"] = classifier.state_dict()
+
     torch.save(state_dict, ckpt_name) 
 
 def start_dist_train(train_fn, world_size, config, dist_init_method=None):  

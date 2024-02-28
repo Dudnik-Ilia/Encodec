@@ -6,7 +6,7 @@ import random
 from utils import convert_audio
 
 class CustomAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, config, file_dir=None, transform=None, mode='train'):
+    def __init__(self, config, file_dir=None, transform=None, mode='train', class_name=None):
         assert mode in ['train', 'test', 'disc_real', 'disc_fake', 'disc_real_test','disc_fake_test'], \
             'dataset mode must be one of the specified'
         if mode == 'train':
@@ -23,6 +23,7 @@ class CustomAudioDataset(torch.utils.data.Dataset):
         assert os.path.exists(file_dir), f"Given: {file_dir}, for mode: {mode}"
         self.audio_files = pd.read_csv(file_dir, sep="/n", on_bad_lines='skip')
         self.transform = transform
+        self.class_name = class_name
         # Num of samples
         self.fixed_length = config.datasets.fixed_length
         # Cut the length of audio
@@ -49,9 +50,15 @@ class CustomAudioDataset(torch.utils.data.Dataset):
                 start = random.randint(0, waveform.size()[1]-self.tensor_cut-1)
                 # cut tensor
                 waveform = waveform[:, start:start+self.tensor_cut]
-                return waveform, self.sample_rate
+                if self.class_name is not None:
+                    return waveform, self.class_name
+                else:
+                    return waveform, self.sample_rate
             else:
-                return waveform, self.sample_rate
+                if self.class_name is not None:
+                    return waveform, self.class_name
+                else:
+                    return waveform, self.sample_rate
         
 
 def pad_sequence(batch):

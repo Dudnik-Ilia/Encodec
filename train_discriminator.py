@@ -1,12 +1,14 @@
 import os
 import torch
 import torch.optim as optim
+from torch import nn
+
 import customAudioDataset as data
 from customAudioDataset import collate_fn
-from datasets.generate_desc_file import generate_csv, split_train_test_csv, duplicate_paths_in_csv
-from utils import set_seed, save_master_checkpoint, start_dist_train, count_parameters
+from datasets.generate_desc_file import generate_csv, split_train_test_csv
+from test import MAudioDiscriminator
+from utils import set_seed, save_master_checkpoint, count_parameters
 from msstftd import MultiScaleSTFTDiscriminator
-from losses import disc_loss
 from scheduler import WarmupCosineLrScheduler
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler
@@ -15,7 +17,6 @@ import hydra
 import logging
 import warnings
 import shutil
-import tarfile
 import zipfile
 
 warnings.filterwarnings("ignore")
@@ -43,7 +44,7 @@ def compress_and_move(input_dirs, output_dir, cut):
         with zipfile.ZipFile(archive_path, 'w') as zipf:
             for audio_file in audio_files:
                 audio_path = os.path.join(input_dir, audio_file)
-                zipf.write(audio_path, arcname=os.path.basename(input_dir)+"_"+audio_file)
+                zipf.write(audio_path, arcname=os.path.basename(input_dir) + "_" + audio_file)
 
         # Move the zip archive to the output directory
         shutil.move(archive_path, output_dir)
@@ -57,47 +58,49 @@ def compress_and_move(input_dirs, output_dir, cut):
             os.remove(archive_path)  # Remove the zip archive after extraction
 
 
-def train_one_epoch(epoch, optimizer_disc, disc_model,
-                    trainloader_real, trainloader_fake, config, disc_scheduler,
+def train_one_epoch(epoch, optimizer_disc, disc_model, classifier,
+                    trainloader, config, disc_scheduler,
                     scaler=None, scaler_disc=None, writer=None):
     """Train one epoch function
     Args:
         epoch (int): current epoch
         optimizer_disc (_type_): discriminator optimizer
         disc_model (_type_): discriminator model
-        trainloader_real (_type_): real dataloader
-        trainloader_fake (_type_): fake dataloader
+        classifier: NN classifiers as one module
+        trainloader (_type_): real dataloader
         config (_type_): hydra config file
         disc_scheduler (_type_): adjust discriminator model learning rate
         warmup_scheduler (_type_): warmup learning rate
     """
     disc_model.train()
+    classifier.train()
 
     # Initialize variables to accumulate losses
     accumulated_loss_disc = 0.0
 
     i = 0
-    for fake_data, real_data in zip(trainloader_fake, trainloader_real):
+    for wave, label in trainloader:
 
         if i == 0:
-            print("Batch dim:", fake_data.shape, " and ", real_data.shape)
-
-        fake_inputs = fake_data
-        real_inputs = real_data
+            print("Batch dim:", wave.shape, " and ", label.shape)
 
         # Input: [Batch, Channels, Time]
         if torch.cuda.is_available():
-            fake_inputs = fake_inputs.contiguous().cuda()
-            real_inputs = real_inputs.contiguous().cuda()
+            wave = wave.contiguous().cuda()
+            label = label.contiguous().cuda()
         else:
-            fake_inputs = fake_inputs.contiguous()
-            real_inputs = real_inputs.contiguous()
+            wave = wave.contiguous()
+            label = label.contiguous()
 
         # Train discriminator (after warmup)
         optimizer_disc.zero_grad()
-        logits_real, _ = disc_model(real_inputs)
-        logits_fake, _ = disc_model(fake_inputs)
-        loss_disc = disc_loss(logits_real, logits_fake)
+        logits, _ = disc_model(wave)
+        pred = classifier(logits)
+
+        criterion = nn.BCELoss()
+
+        loss_disc = criterion(pred, label)
+
         loss_disc.backward()
         optimizer_disc.step()
         # Accumulate discriminator loss
@@ -107,33 +110,31 @@ def train_one_epoch(epoch, optimizer_disc, disc_model,
 
         log_msg = f"loss_disc: {accumulated_loss_disc / (i + 1) :.4f}"
         writer.add_scalar('Train/Loss_Disc', accumulated_loss_disc / (i + 1),
-                          (epoch - 1) * len(trainloader_real) + i)
+                          (epoch - 1) * len(trainloader) + i)
         logger.info(log_msg)
-        i+=1
+        i += 1
 
 
 @torch.no_grad()
-def test(epoch, disc_model, testloader_real, testloader_fake, config, writer):
+def test(epoch, disc_model, classifier, testloader, config, writer):
     disc_model.eval()
-    for fake_data, real_data in zip(testloader_fake, testloader_real):
-
-        fake_inputs = fake_data
-
-        real_inputs = real_data
+    for wave, label in testloader:
 
         # [B, 1, T]: eg. [2, 1, 203760]
         if torch.cuda.is_available():
-            fake_inputs = fake_inputs.contiguous().cuda()
-            real_inputs = real_inputs.contiguous().cuda()
+            wave = wave.contiguous().cuda()
+            label = label.contiguous().cuda()
         else:
-            fake_inputs = fake_inputs.contiguous()
-            real_inputs = real_inputs.contiguous()
+            wave = wave.contiguous()
+            label = label.contiguous()
 
-        logits_real, _ = disc_model(real_inputs)
-        logits_fake, _ = disc_model(fake_inputs)
+        logits, _ = disc_model(wave)
+        pred = classifier(logits)
 
-        # compute discriminator loss
-        loss_disc = disc_loss(logits_real, logits_fake)
+        criterion = nn.BCELoss()
+
+        loss_disc = criterion(pred, label)
+
 
     if not config.distributed.data_parallel or dist.get_rank() == 0:
         log_msg = (f'| TEST | epoch: {epoch} | loss_disc: {loss_disc.item():.4f}')
@@ -179,11 +180,11 @@ def train(local_rank, world_size, config, tmp_file=None):
     # Move Fake
     input_directories = [
         os.path.normpath(OUTPUT_DIR_SOUNDSTREAM),
-        os.path.normpath(OUTPUT_DIR_ENCODEC+"/24.0"),
+        os.path.normpath(OUTPUT_DIR_ENCODEC + "/24.0"),
         os.path.normpath(OUTPUT_DIR_NEW_ENCODEC)
     ]
-    output_directory = os.path.normpath(os.path.join(TMPDIR,SLURM_JOBID, "Fake_dir"))
-    compress_and_move(input_directories, output_directory, cut=500) # 500 audios each
+    output_directory = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID, "Fake_dir"))
+    compress_and_move(input_directories, output_directory, cut=500)  # 500 audios each
     print("Moved fake")
 
     # Create description csv files FAKE
@@ -199,7 +200,7 @@ def train(local_rank, world_size, config, tmp_file=None):
         os.path.normpath(DATA_IN_ONE_DIR)
     ]
     output_directory = os.path.normpath(os.path.join(TMPDIR, SLURM_JOBID, "Real_dir"))
-    compress_and_move(input_directories, output_directory, cut=1500)# 1500 real audios
+    compress_and_move(input_directories, output_directory, cut=1500)  # 1500 real audios
     print("Moved real")
 
     # Create description csv files REAL
@@ -212,20 +213,29 @@ def train(local_rank, world_size, config, tmp_file=None):
     print("Generated Real csv files")
 
     # set train and test datasets for real and fake
-    trainset_real = data.CustomAudioDataset(config=config, file_dir=real_train_csv, mode="disc_real")
-    trainset_fake = data.CustomAudioDataset(config=config, file_dir=fake_train_csv, mode="disc_fake")
-    testset_real = data.CustomAudioDataset(config=config, file_dir=real_test_csv, mode='disc_real_test')
-    testset_fake = data.CustomAudioDataset(config=config, file_dir=fake_test_csv, mode='disc_fake_test')
+    trainset_real = data.CustomAudioDataset(config=config, file_dir=real_train_csv,
+                                            mode="disc_real", class_name=torch.tensor([1]))
+    trainset_fake = data.CustomAudioDataset(config=config, file_dir=fake_train_csv,
+                                            mode="disc_fake", class_name=torch.tensor([0]))
+    testset_real = data.CustomAudioDataset(config=config, file_dir=real_test_csv,
+                                           mode='disc_real_test', class_name=torch.tensor([1]))
+    testset_fake = data.CustomAudioDataset(config=config, file_dir=fake_test_csv,
+                                           mode='disc_fake_test', class_name=torch.tensor([0]))
+
+    trainset = torch.utils.data.ConcatDataset([trainset_real, trainset_fake])
+    testset = torch.utils.data.ConcatDataset([testset_real, testset_fake])
 
     disc_model = MultiScaleSTFTDiscriminator(filters=config.model.filters,
                                              hop_lengths=config.model.disc_hop_lengths,
                                              win_lengths=config.model.disc_win_lengths,
                                              n_ffts=config.model.disc_n_ffts)
 
+    classifier = MAudioDiscriminator()
+
     # log model, disc model parameters and train mode
     logger.info(config)
     logger.info(
-        f"Disc Model Parameters: {count_parameters(disc_model)}")
+        f"Disc Model Parameters: {count_parameters(disc_model) + count_parameters(classifier)}")
 
     # If continue training
     resume_epoch = 0
@@ -237,6 +247,7 @@ def train(local_rank, world_size, config, tmp_file=None):
         # to avoid GPU RAM surge when loading a model checkpoint.
         disc_model_checkpoint = torch.load(config.checkpoint.disc_checkpoint_path, map_location='cpu')
         disc_model.load_state_dict(disc_model_checkpoint['model_state_dict'])
+        classifier.load_state_dict(disc_model_checkpoint["classifier_state_dict"])
         resume_epoch = disc_model_checkpoint['epoch']
         if resume_epoch >= config.common.max_epoch:
             raise ValueError(f"resume epoch {resume_epoch} is larger than total epochs {config.common.epochs}")
@@ -248,49 +259,36 @@ def train(local_rank, world_size, config, tmp_file=None):
     # Move to GPU
     if torch.cuda.is_available():
         disc_model.cuda()
+        classifier.cuda()
 
     # Set up DataLoader
-    trainloader_real = torch.utils.data.DataLoader(
-        trainset_real,
+    trainloader = torch.utils.data.DataLoader(
+        trainset,
         batch_size=config.datasets.batch_size,
         sampler=train_sampler,
         shuffle=(train_sampler is None), collate_fn=collate_fn,
         pin_memory=config.datasets.pin_memory)
 
-    trainloader_fake = torch.utils.data.DataLoader(
-        trainset_fake,
+    testloader = torch.utils.data.DataLoader(
+        testset,
         batch_size=config.datasets.batch_size,
         sampler=train_sampler,
         shuffle=(train_sampler is None), collate_fn=collate_fn,
         pin_memory=config.datasets.pin_memory)
 
-    testloader_real = torch.utils.data.DataLoader(
-        testset_real,
-        batch_size=config.datasets.batch_size,
-        sampler=test_sampler,
-        shuffle=False, collate_fn=collate_fn,
-        pin_memory=config.datasets.pin_memory)
-
-    testloader_fake = torch.utils.data.DataLoader(
-        testset_fake,
-        batch_size=config.datasets.batch_size,
-        sampler=test_sampler,
-        shuffle=False, collate_fn=collate_fn,
-        pin_memory=config.datasets.pin_memory)
-
-    logger.info(f"There are {len(trainloader_real)} batches in train real ")
-    logger.info(f"There are {len(trainloader_fake)} batches in train fake ")
-    logger.info(f"There are {len(testloader_real)} batches in test real")
-    logger.info(f"There are {len(testloader_fake)} batches in test fake")
+    logger.info(f"There are {len(trainloader)} batches in train")
+    logger.info(f"There are {len(testloader)} batches in test")
 
     # Set optimizer
-    disc_params = [p for p in disc_model.parameters() if p.requires_grad]
+    disc_params = [p for p in disc_model.parameters() if p.requires_grad] + \
+                  [p for p in classifier.parameters() if p.requires_grad]
+
     optimizer_disc = optim.Adam([{'params': disc_params, 'lr': config.optimization.disc_lr}], betas=(0.5, 0.9))
 
     disc_scheduler = WarmupCosineLrScheduler(optimizer_disc,
-                                             max_iter=config.common.max_epoch * len(trainloader_real),
+                                             max_iter=config.common.max_epoch * len(trainloader),
                                              eta_ratio=0.1,
-                                             warmup_iter=config.lr_scheduler.warmup_epoch * len(trainloader_real),
+                                             warmup_iter=config.lr_scheduler.warmup_epoch * len(testloader),
                                              warmup_ratio=1e-4)
 
     # Scaler: (AutoMixPrecision) changing data types to speed up computation
@@ -315,17 +313,18 @@ def train(local_rank, world_size, config, tmp_file=None):
 
     for epoch in range(start_epoch, config.common.max_epoch + 1):
         train_one_epoch(
-            epoch, optimizer_disc, disc_model,
-            trainloader_real, trainloader_fake, config, disc_scheduler,
+            epoch, optimizer_disc, disc_model, classifier,
+            trainloader, config, disc_scheduler,
             scaler, scaler_disc, writer)
         if epoch % config.common.test_interval == 0:
-            test(epoch, disc_model, testloader_real, testloader_fake, config, writer)
+            test(epoch, disc_model, classifier, testloader, config, writer)
         # Save checkpoint and epoch
         if epoch % config.common.save_interval == 0:
             disc_model_to_save = disc_model.module if config.distributed.data_parallel else disc_model
             if not config.distributed.data_parallel or dist.get_rank() == 0:
                 save_master_checkpoint(epoch, disc_model_to_save, optimizer_disc, disc_scheduler,
-                                       f'{config.checkpoint.save_location}ep{epoch}_disc_lr{config.optimization.disc_lr}.pt')
+                                       f'{config.checkpoint.save_location}ep{epoch}_disc_lr{config.optimization.disc_lr}.pt',
+                                       classifier=classifier)
 
 
 # Since hydra is set, cur work dir is changed to the ones with the logs
@@ -341,6 +340,7 @@ def main(config):
         torch.backends.cudnn.enabled = False
         # set single gpu train
     train(1, 1, config)
+
 
 if __name__ == '__main__':
     main()
